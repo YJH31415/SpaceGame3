@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=12,SOFT=24;
-let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0;
+let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0;\nconst camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
 const S={running:false,paused:false,level:1,nick:'',elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],recorded:false};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
@@ -19,7 +19,7 @@ const levels=[
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:Math.min(360,Math.floor(W*H/2600))},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,a:Math.random()*.7+.2,p:Math.random()*TAU}));}
 addEventListener('resize',resize);resize();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a),center=()=>({x:W*.45,y:H*.5}),scale=()=>Math.min(W/920,H/650)*1.05;
-function setLevel(n){S.level=n;S.elapsed=0;S.shots=[];S.path=[];S.score=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
+function setLevel(n){camera.x=0;camera.y=0;camera.zoom=1;S.level=n;S.elapsed=0;S.shots=[];S.path=[];S.score=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
  if(n===11){S.bodies=[];S.ship={x:W*.22,y:H*.5,vx:0,vy:0,angle:0,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='—';$('combatScore').textContent='0';$('scoreBar').style.width='0%';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z,y=c.y+oy*z;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:n>=7?rand(.0008,.002):n>=4?rand(.0003,.001):0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
  S.worm={x:Math.min(W-290,c.x+360*z),y:c.y+rand(-110,110)*z,r:Math.max(27,34*z)};
@@ -63,7 +63,19 @@ document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{S.rate=+b.da
 document.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>exportRanks(b.dataset.export));$('importRanks').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let v=JSON.parse(await f.text());if(!Array.isArray(v))throw Error();let clean=v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time));localStorage.setItem('spaceRescueRanks',JSON.stringify([...rankData(),...clean].sort((a,b)=>b.level-a.level||a.time-b.time).slice(0,500)));showRanks();alert('랭킹 백업을 가져왔습니다.');}catch(err){alert('올바른 랭킹 JSON 파일이 아닙니다.');}e.target.value='';};
 $('marsWeapon').onclick=()=>fire('mars');$('beamWeapon').onclick=()=>fire('beam');
 function infoAt(p){let b=S.bodies.find(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r+10);if(!b)return;$('infoName').textContent=b.name;let vals=[['종류',b.type],['질량(게임 단위)',b.mass.toLocaleString()],['반지름',b.r.toFixed(1)],['표면 중력',(G*b.mass/(b.r*b.r+SOFT)).toFixed(2)],['속도',Math.hypot(b.vx,b.vy).toFixed(2)],['공전 방향',b.dir>0?'반시계':'시계']];$('infoDetails').innerHTML=vals.map(v=>'<div class="info-line"><span>'+v[0]+'</span><b>'+safe(v[1])+'</b></div>').join('');$('infoCard').classList.remove('hidden');}
-function point(e){let r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}canvas.addEventListener('contextmenu',e=>{e.preventDefault();infoAt(point(e));});let hold=null;canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'){let p=point(e);hold=setTimeout(()=>infoAt(p),550);}});['pointerup','pointermove','pointercancel'].forEach(ev=>canvas.addEventListener(ev,()=>clearTimeout(hold)));$('closeInfo').onclick=()=>$('infoCard').classList.add('hidden');
+function point(e){let r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function screenToWorld(p){return{x:(p.x-W/2-camera.x)/camera.zoom+W/2,y:(p.y-H/2-camera.y)/camera.zoom+H/2};}
+function zoomAt(p,factor){let before=screenToWorld(p);camera.zoom=clamp(camera.zoom*factor,.55,2.8);camera.x=p.x-W/2-(before.x-W/2)*camera.zoom;camera.y=p.y-H/2-(before.y-H/2)*camera.zoom;}
+function updateZoomLabel(){zoomLabel.textContent=Math.round(camera.zoom*100)+'%';}
+const mapTools=document.createElement('div');mapTools.className='map-tools';mapTools.innerHTML='<button type="button" aria-label="축소">−</button><span>100%</span><button type="button" aria-label="확대">+</button><button type="button" aria-label="지도 초기화">⌖</button>';document.getElementById('app').appendChild(mapTools);
+const zoomLabel=mapTools.querySelector('span'),zoomButtons=mapTools.querySelectorAll('button');
+zoomButtons[0].onclick=()=>{zoomAt({x:W/2,y:H/2},.85);updateZoomLabel();};zoomButtons[1].onclick=()=>{zoomAt({x:W/2,y:H/2},1.18);updateZoomLabel();};zoomButtons[2].onclick=()=>{camera.x=0;camera.y=0;camera.zoom=1;updateZoomLabel();};
+canvas.addEventListener('contextmenu',e=>{e.preventDefault();infoAt(screenToWorld(point(e)));});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoomAt(point(e),e.deltaY<0?1.12:.89);updateZoomLabel();},{passive:false});
+canvas.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType!=='touch')return;const p=point(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);if(pointers.size===1){dragState={id:e.pointerId,start:p,last:p,moved:false,pointerType:e.pointerType};if(e.pointerType==='touch')holdTimer=setTimeout(()=>{if(dragState&&!dragState.moved&&pointers.size===1)infoAt(screenToWorld(p));},600);}else if(pointers.size===2){clearTimeout(holdTimer);const pts=[...pointers.values()];pinchState={distance:Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),mid:{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}};dragState=null;}});
+canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=point(e),prev=pointers.get(e.pointerId);pointers.set(e.pointerId,p);if(pointers.size>=2){const pts=[...pointers.values()],dist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),mid={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};if(pinchState){zoomAt(pinchState.mid,dist/Math.max(1,pinchState.distance));camera.x+=mid.x-pinchState.mid.x;camera.y+=mid.y-pinchState.mid.y;}pinchState={distance:dist,mid};updateZoomLabel();return;}if(dragState&&dragState.id===e.pointerId){if(Math.hypot(p.x-dragState.start.x,p.y-dragState.start.y)>6){dragState.moved=true;clearTimeout(holdTimer);}camera.x+=p.x-prev.x;camera.y+=p.y-prev.y;}});
+function endPointer(e){pointers.delete(e.pointerId);clearTimeout(holdTimer);if(pointers.size<2)pinchState=null;if(pointers.size===0)dragState=null;}
+canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);canvas.addEventListener('lostpointercapture',endPointer);$('closeInfo').onclick=()=>$('infoCard').classList.add('hidden');
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&S.running){S.paused=true;$('pauseBtn').textContent='재개';}});
 setLevel(1);
 })();
