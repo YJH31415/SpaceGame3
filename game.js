@@ -23,13 +23,25 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a)
 function setLevel(n){camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.level=n;S.elapsed=0;S.shots=[];S.path=[];S.score=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
  if(n===11){S.bodies=[];S.ship={x:W*.22,y:H*.5,vx:0,vy:0,angle:0,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='—';$('combatScore').textContent='0';$('scoreBar').style.width='0%';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z,y=c.y+oy*z;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:n>=7?rand(.0008,.002):n>=4?rand(.0003,.001):0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
- S.worm={x:Math.min(W-290,c.x+360*z),y:c.y+rand(-110,110)*z,r:Math.max(27,34*z)};
- S.ship={x:Math.max(90,c.x-360*z),y:c.y+rand(-110,110)*z,vx:0,vy:0,angle:0,r:8,launched:false};
+ S.worm={x:clamp(c.x+Math.max(220,Math.min(360,W*.34))*z,Math.max(35,W*.58),W-45),y:clamp(c.y+rand(-110,110)*z,80,H-80),r:Math.max(27,34*z)};
+ // 천체와 웜홀에서 충분히 떨어진 안전한 출발 지점을 화면 안에서 탐색한다.
+ const shipRadius=8;let spawn={x:W*.12,y:H*.5},bestClearance=-Infinity;
+ const minX=30,maxX=Math.max(31,W-30),minY=65,maxY=Math.max(66,H-65);
+ for(let yy=minY;yy<=maxY;yy+=Math.max(18,Math.min(32,H/18))){
+  for(let xx=minX;xx<=maxX;xx+=Math.max(18,Math.min(32,W/24))){
+   const bodyClearance=S.bodies.reduce((m,b)=>Math.min(m,Math.hypot(xx-b.x,yy-b.y)-b.r-shipRadius),Infinity);
+   const wormClearance=Math.hypot(xx-S.worm.x,yy-S.worm.y)-S.worm.r-shipRadius-90;
+   const leftPreference=Math.max(0,xx-W*.42)*.22;
+   const clearance=Math.min(bodyClearance,wormClearance)-leftPreference;
+   if(clearance>bestClearance){bestClearance=clearance;spawn={x:xx,y:yy};}
+  }
+ }
+ S.ship={x:spawn.x,y:spawn.y,vx:0,vy:0,angle:0,r:shipRadius,launched:false,safe:1.5};
  $('objectCount').textContent=String(S.bodies.length).padStart(2,'0');$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';$('statusText').textContent='GRAVITY FIELD STABLE';
 }
 function accel(x,y,bodies){let ax=0,ay=0;for(const b of bodies){let dx=b.x-x,dy=b.y-y,d2=dx*dx+dy*dy+SOFT*SOFT,d=Math.sqrt(d2),a=Math.min(G*b.mass/d2,90);ax+=a*dx/d;ay+=a*dy/d;}return{x:ax,y:ay};}
 function moveBodies(dt){for(const b of S.bodies){if(b.type==='ufo'){let t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}if(!b.orbit)continue;let dx=b.x-b.bx,dy=b.y-b.by,a=b.orbit*dt*b.dir,c=Math.cos(a),s=Math.sin(a);b.x=b.bx+dx*c-dy*s;b.y=b.by+dx*s+dy*c;}}
-function step(dt){moveBodies(dt);let p=S.ship;if(!p||!p.launched)return;let a=accel(p.x,p.y,S.bodies);p.vx+=a.x*dt;p.vy+=a.y*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(!Number.isFinite(p.x+p.y+p.vx+p.vy)||Math.hypot(p.vx,p.vy)>1400){lose();return;}for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}if(S.level<=10&&Math.hypot(p.x-S.worm.x,p.y-S.worm.y)<S.worm.r)levelClear();}
+function step(dt){moveBodies(dt);let p=S.ship;if(!p||!p.launched)return;let a=accel(p.x,p.y,S.bodies);p.vx+=a.x*dt;p.vy+=a.y*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(!Number.isFinite(p.x+p.y+p.vx+p.vy)||Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}if(S.level<=10&&Math.hypot(p.x-S.worm.x,p.y-S.worm.y)<S.worm.r&&p.safe<=0)levelClear();}
 function predict(){let p=S.ship;if(!p||!p.launched){S.path=[];return;}let x=p.x,y=p.y,vx=p.vx,vy=p.vy,bs=S.bodies.map(b=>({...b})),out=[],dt=.055;for(let i=0;i<260;i++){for(const b of bs)if(b.orbit){let dx=b.x-b.bx,dy=b.y-b.by,a=b.orbit*dt*S.rate*b.dir,c=Math.cos(a),s=Math.sin(a);b.x=b.bx+dx*c-dy*s;b.y=b.by+dx*s+dy*c;}let ac=accel(x,y,bs);vx+=ac.x*dt;vy+=ac.y*dt;x+=vx*dt;y+=vy*dt;if(!Number.isFinite(x+y)||Math.hypot(vx,vy)>1400)break;out.push({x,y});if(bs.some(b=>Math.hypot(x-b.x,y-b.y)<b.r+4)||Math.hypot(x-S.worm.x,y-S.worm.y)<S.worm.r)break;}S.path=out;}
 function launch(){if(S.level===11)return;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();}
 function rankData(){try{let v=JSON.parse(localStorage.getItem('spaceRescueRanks')||'[]');return Array.isArray(v)?v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time)):[];}catch(e){return[];}}
