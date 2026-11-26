@@ -20,3 +20,7 @@
 .wheel-grip{position:absolute;left:50%;bottom:-5px;width:27px;height:12px;transform:translateX(-50%);border-radius:4px;background:#58b9d2;border:1px solid #b4f5ff}
 .steering-wheel>span{font:8px Orbitron,sans-serif;letter-spacing:1.5px;color:#9ceeff}
 @media(max-width:760px){.steering-wheel{left:12px;bottom:145px;width:94px;height:94px}.wheel-ring{width:66px;height:66px}.wheel-spoke{height:25px}}
+
+/* Final-level orbital distance control */
+.orbit-control{display:flex;flex-direction:column;gap:3px;min-width:125px;color:var(--muted);font-size:9px}.orbit-control label{white-space:nowrap}.orbit-control b{color:var(--cyan);margin-left:5px}.orbit-control input{width:125px;margin:0;accent-color:var(--cyan)}
+@media(max-width:760px){.combat-panel{flex-wrap:wrap;justify-content:center;bottom:170px}.orbit-control{min-width:105px;max-width:130px}.orbit-control input{width:100%}.combat-hull{font-size:8px}}
