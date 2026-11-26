@@ -55,15 +55,12 @@ function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(
 function segmentDistanceSquared(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy;if(!len)return(px-x1)**2+(py-y1)**2;const t=clamp(((px-x1)*dx+(py-y1)*dy)/len,0,1),qx=x1+t*dx,qy=y1+t*dy;return(px-qx)**2+(py-qy)**2;}
 function interceptPoint(shooter,target,speed){
  const rx=target.x-shooter.x,ry=target.y-shooter.y,vx=target.vx,vy=target.vy,acc=gravityAt(target.x,target.y,[S.planet]);
+ const A=vx*vx+vy*vy-speed*speed,B=2*(rx*vx+ry*vy),C=rx*rx+ry*ry;
  let t=Math.hypot(rx,ry)/speed;
- for(let i=0;i<4;i++){
-  const px=rx+vx*t+.5*acc.x*t*t,py=ry+vy*t+.5*acc.y*t*t;
-  const A=vx*vx+vy*vy-speed*speed,B=2*(px*vx+py*vy),C=px*px+py*py;
-  if(Math.abs(A)<1e-6){if(Math.abs(B)>1e-6)t=Math.max(.02,-C/B);}
-  else{const disc=B*B-4*A*C;if(disc>=0){const roots=[(-B-Math.sqrt(disc))/(2*A),(-B+Math.sqrt(disc))/(2*A)].filter(v=>v>0&&Number.isFinite(v));if(roots.length)t=Math.min(...roots);}}
-  if(!Number.isFinite(t)||t<=0)t=Math.hypot(px,py)/speed;
- }
- return{x:target.x+target.vx*t+.5*acc.x*t*t,y:target.y+target.vy*t+.5*acc.y*t*t,time:t};
+ if(Math.abs(A)<1e-6){if(Math.abs(B)>1e-6){const root=-C/B;if(root>0)t=root;}}
+ else{const disc=B*B-4*A*C;if(disc>=0){const roots=[(-B-Math.sqrt(disc))/(2*A),(-B+Math.sqrt(disc))/(2*A)].filter(v=>v>0&&Number.isFinite(v));if(roots.length)t=Math.min(...roots);}}
+ for(let i=0;i<5;i++){const px=target.x+vx*t+.5*acc.x*t*t,py=target.y+vy*t+.5*acc.y*t*t,next=Math.hypot(px-shooter.x,py-shooter.y)/speed;t=t*.35+next*.65;}
+ return{x:target.x+vx*t+.5*acc.x*t*t,y:target.y+vy*t+.5*acc.y*t*t,time:t};
 }
 function updateAlienAI(dt){const p=S.ship,heading=p.angle,leadX=p.x+Math.cos(heading)*42,leadY=p.y+Math.sin(heading)*42;for(let i=0;i<S.aliens.length;i++){const a=S.aliens[i];a.think-=dt;if(a.think<=0){a.think=rand(1.8,3.2);a.role=(a.role+1+(i%3===0?1:0))%4;}const roleAngle=[Math.PI,Math.PI*.72,-Math.PI*.72,0][a.role],angle=heading+roleAngle+a.slotAngle*.22,radius=125+(i%3)*24,targetX=leadX+Math.cos(angle)*radius,targetY=leadY+Math.sin(angle)*radius;let sx=0,sy=0;for(let j=0;j<S.aliens.length;j++){if(i===j)continue;const b=S.aliens[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2>0&&d2<78*78){const d=Math.sqrt(d2),force=(78-d)/78;sx+=dx/d*force*210;sy+=dy/d*force*210;}}const dx=targetX-a.x,dy=targetY-a.y,d=Math.hypot(dx,dy)||1;let ax=dx/d*190+sx-a.vx*1.7,ay=dy/d*190+sy-a.vy*1.7,acc=Math.hypot(ax,ay);if(acc>260){ax=ax/acc*260;ay=ay/acc*260;}a.vx+=ax*dt;a.vy+=ay*dt;const speed=Math.hypot(a.vx,a.vy);if(speed>165){a.vx=a.vx/speed*165;a.vy=a.vy/speed*165;}a.x+=a.vx*dt;a.y+=a.vy*dt;}}
 function updateKeyboardFlightControls(dt,p){
