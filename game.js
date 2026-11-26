@@ -1,7 +1,8 @@
 (() => {
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=12,SOFT=24;
-let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0;\nconst camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
+let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0;
+const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
 const S={running:false,paused:false,level:1,nick:'',elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],recorded:false};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
@@ -52,7 +53,7 @@ function ship(p){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle);ctx.shado
 function drawUfoAttack(){if(S.level!==10)return;const u=S.bodies.find(b=>b.type==='ufo');if(!u)return;ctx.save();ctx.strokeStyle='rgba(255,70,105,.35)';ctx.lineWidth=2;ctx.setLineDash([4,8]);ctx.beginPath();ctx.moveTo(u.x,u.y+u.r*.5);ctx.lineTo(S.ship.x,S.ship.y);ctx.stroke();ctx.restore();}
 function drawPath(){if(!S.path.length)return;ctx.save();ctx.strokeStyle='rgba(92,226,255,.78)';ctx.lineWidth=1.6;ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(S.ship.x,S.ship.y);for(const p of S.path)ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();}
 function drawCombat(t){for(const p of S.shots){ctx.fillStyle=p.type==='beam'?'#79ffb8':'#ffb65e';ctx.shadowBlur=14;ctx.shadowColor=ctx.fillStyle;ctx.beginPath();ctx.arc(p.x,p.y,p.type==='beam'?6:5,0,TAU);ctx.fill();ctx.shadowBlur=0;}for(let i=0;i<9;i++){let x=W*.64+Math.sin(t*.0008+i*2)*W*.09,y=H*.25+i*H*.06+Math.cos(t*.001+i)*22;ctx.fillStyle='#8dffcf';ctx.beginPath();ctx.arc(x,y,5+i%3,0,TAU);ctx.fill();ctx.strokeStyle='#6affc4';ctx.beginPath();ctx.moveTo(x,y+5);ctx.lineTo(x-8,y+18);ctx.moveTo(x,y+5);ctx.lineTo(x+8,y+18);ctx.stroke();}ctx.fillStyle='#8e704d';ctx.beginPath();ctx.ellipse(W*.73,H*.76,W*.3,H*.07,0,0,TAU);ctx.fill();}
-function draw(t){bg(t);if(S.level===11){drawCombat(t);ship(S.ship);return;}S.bodies.forEach(b=>body(b,t));drawUfoAttack();worm(t);drawPath();ship(S.ship);}
+function draw(t){bg(t);ctx.save();ctx.translate(W/2+camera.x,H/2+camera.y);ctx.scale(camera.zoom,camera.zoom);ctx.translate(-W/2,-H/2);if(S.level===11){drawCombat(t);ship(S.ship);}else{S.bodies.forEach(b=>body(b,t));drawUfoAttack();worm(t);drawPath();ship(S.ship);}ctx.restore();}
 function loop(now){requestAnimationFrame(loop);let raw=Math.min(.05,(now-S.last)/1000||0);S.last=now;if(S.running&&!S.paused){S.elapsed+=raw;S.acc+=raw*S.rate;let dt=1/120,steps=0;while(S.acc>=dt&&steps<12){step(dt);S.acc-=dt;steps++;}if(steps===12)S.acc=0;pathClock+=raw;if(pathClock>.2){predict();pathClock=0;}if(S.level===11){S.shots.forEach(p=>{p.x+=p.vx*raw;p.y+=p.vy*raw;p.life-=raw;if(!p.hit&&p.x>=W*.68&&p.x<=W*.82&&Math.abs(p.y-H*.76)<55){p.hit=true;S.score=Math.min(100,S.score+(p.type==='beam'?15:5));$('combatScore').textContent=S.score;$('scoreBar').style.width=S.score+'%';}});S.shots=S.shots.filter(p=>p.life>0&&!p.hit);if(S.score>=100)finish();}}$('timer').textContent=fmt(S.total+S.elapsed);$('simRate').textContent=S.rate.toFixed(2)+'×';if(S.ship&&S.level<=10)$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';draw(now);}
 requestAnimationFrame(loop);
 function fire(type){if(S.level!==11||!S.running)return;S.shots.push({x:W*.23+15,y:H*.72+rand(-12,12),vx:W*.55,vy:rand(-8,8),life:1.8,type});}
