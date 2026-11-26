@@ -94,6 +94,18 @@ steeringWheel.addEventListener('pointerdown',e=>{if(!S.running||S.paused||!S.shi
 steeringWheel.addEventListener('pointermove',e=>{if(steeringPointer!==e.pointerId)return;const r=steeringWheel.getBoundingClientRect();const a=Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2))*180/Math.PI;setSteering(a);});
 function endSteering(e){if(steeringPointer===e.pointerId)steeringPointer=null;}
 steeringWheel.addEventListener('pointerup',endSteering);steeringWheel.addEventListener('pointercancel',endSteering);
+// PC 키보드 방향 조종: 좌우 화살표를 누르는 동안 진행 방향을 조금씩 회전한다.
+const steeringKeys=new Set(['ArrowLeft','ArrowRight']);
+document.addEventListener('keydown',e=>{
+ if(!steeringKeys.has(e.key)||!S.running||S.paused||!S.ship?.launched||S.level===11)return;
+ const el=document.activeElement;
+ if(el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)))return;
+ e.preventDefault();
+ if(e.repeat||!steeringKeys.has(e.key))return;
+ const direction=e.key==='ArrowLeft'?-1:1;
+ setSteering((Math.atan2(S.ship.vy,S.ship.vx)*180/Math.PI)+direction*5);
+});
+document.addEventListener('keyup',e=>{if(steeringKeys.has(e.key)&&S.running)e.preventDefault();});
 document.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>exportRanks(b.dataset.export));$('importRanks').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let v=JSON.parse(await f.text());if(!Array.isArray(v))throw Error();let clean=v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time));localStorage.setItem('spaceRescueRanks',JSON.stringify([...rankData(),...clean].sort((a,b)=>b.level-a.level||a.time-b.time).slice(0,500)));showRanks();alert('랭킹 백업을 가져왔습니다.');}catch(err){alert('올바른 랭킹 JSON 파일이 아닙니다.');}e.target.value='';};
 $('marsWeapon').onclick=()=>fire('mars');$('beamWeapon').onclick=()=>fire('beam');$('orbitDistance').addEventListener('input',()=>{S.orbitFactor=+$('orbitDistance').value;$('orbitDistanceValue').textContent=S.orbitFactor.toFixed(1)+'×';if(S.level===11&&S.planet&&S.ship){const r=S.planet.r*S.orbitFactor;S.ship.x=S.planet.x+Math.cos(S.orbitAngle)*r;S.ship.y=S.planet.y+Math.sin(S.orbitAngle)*r;}});
 function infoAt(p){let b=S.bodies.find(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r+10);if(!b)return;$('infoName').textContent=b.name;let vals=[['종류',b.type],['질량(게임 단위)',b.mass.toLocaleString()],['반지름',b.r.toFixed(1)],['표면 중력',(G*b.mass/(b.r*b.r+SOFT)).toFixed(2)],['속도',Math.hypot(b.vx,b.vy).toFixed(2)],['공전 방향',b.dir>0?'반시계':'시계']];$('infoDetails').innerHTML=vals.map(v=>'<div class="info-line"><span>'+v[0]+'</span><b>'+safe(v[1])+'</b></div>').join('');$('infoCard').classList.remove('hidden');}
