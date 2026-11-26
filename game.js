@@ -25,7 +25,7 @@ function setLevel(n){camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='
  if(n===11){S.secretDoor=null;S.combatAge=0;S.orbitFactor=3.3;$('orbitDistance').value='3.3';$('orbitDistanceValue').textContent='3.3×';S.bodies=[];S.planet={x:W*.57,y:H*.52,r:Math.min(W,H)*.19,mass:90000};S.aliens=Array.from({length:18},(_,i)=>{const a=i*TAU/18+rand(-.12,.12),d=S.planet.r*rand(1.7,2.55);return{x:S.planet.x+Math.cos(a)*d,y:S.planet.y+Math.sin(a)*d,vx:0,vy:0,slotAngle:i*TAU/18,role:i%4,cooldown:rand(.45,2.8),think:rand(0,1.2),r:7+Math.random()*3};});S.orbitAngle=-Math.PI/2;const initialRadius=S.planet.r*S.orbitFactor,initialSpeed=Math.sqrt(G*S.planet.mass/initialRadius)*.96;S.ship={x:S.planet.x+Math.cos(S.orbitAngle)*initialRadius,y:S.planet.y+Math.sin(S.orbitAngle)*initialRadius,vx:-Math.sin(S.orbitAngle)*initialSpeed,vy:Math.cos(S.orbitAngle)*initialSpeed,angle:S.orbitAngle+Math.PI/2,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='01';$('combatScore').textContent='0';$('scoreBar').style.width='0%';$('shipStatus').textContent='ORBITAL COMBAT';$('hullValue').textContent='3';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z*1.07,y=c.y+oy*z*1.07;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
  if(S.secretDoor){const sun=S.bodies.find(b=>b.type==='star');S.secretDoor.orbit=Math.max(110,Math.min(175,160*z));S.secretDoor.x=sun.x+Math.cos(S.secretDoor.angle)*S.secretDoor.orbit;S.secretDoor.y=sun.y+Math.sin(S.secretDoor.angle)*S.secretDoor.orbit;}
- recenterSystem();initializeOrbitalVelocities();removeBarycenterVelocity();
+ assignOrbitalParents();constrainMoonOrbits();recenterSystem();initializeOrbitalVelocities();removeBarycenterVelocity();
  S.worm={x:clamp(c.x+Math.max(220,Math.min(360,W*.34))*z,Math.max(35,W*.58),W-45),y:clamp(c.y+rand(-110,110)*z,80,H-80),r:Math.max(27,34*z)};const wormAnchor=S.bodies.filter(b=>b.type==='blackhole'||b.type==='star').sort((a,b)=>b.mass-a.mass)[0]||S.bodies.reduce((a,b)=>!a||b.mass>a.mass?b:a,null);S.worm.anchor=wormAnchor;S.worm.orbit=Math.hypot(S.worm.x-wormAnchor.x,S.worm.y-wormAnchor.y);S.worm.angle=Math.atan2(S.worm.y-wormAnchor.y,S.worm.x-wormAnchor.x);
  // 천체와 웜홀에서 충분히 떨어진 안전한 출발 지점을 화면 안에서 탐색한다.
  const shipRadius=8;let spawn={x:W*.12,y:H*.5},bestClearance=-Infinity;
@@ -63,6 +63,24 @@ function assignOrbitalParents(){
   if(['asteroid','comet'].includes(b.type)){b.parent=nearest(b,planets)||nearest(b,stars)||nearest(b,blackholes);}
  }
 }
+function constrainMoonOrbits(){
+ const moons=S.bodies.filter(b=>b.type==='moon'&&b.parent);
+ for(const moon of moons){
+  const parent=moon.parent,primary=parent.parent;
+  if(!primary)continue;
+  const dx=moon.x-parent.x,dy=moon.y-parent.y,current=Math.hypot(dx,dy)||1;
+  const parentDistance=Math.hypot(parent.x-primary.x);
+  const hill=parentDistance*Math.cbrt(gravityMass(parent)/(3*gravityMass(primary)));
+  const minimum=parent.r+moon.r+6;
+  const stableLimit=Math.max(minimum,hill*.42);
+  const target=Math.min(current,stableLimit);
+  if(target<current){
+   moon.x=parent.x+dx/current*target;
+   moon.y=parent.y+dy/current*target;
+   moon.bx=moon.x;moon.by=moon.y;
+  }
+ }
+}
 function initializeOrbitalVelocities(){
  const bodies=S.bodies.filter(b=>b.type!=='ufo');
  assignOrbitalParents();
@@ -71,12 +89,16 @@ function initializeOrbitalVelocities(){
  for(const b of ordered){
   const parent=b.parent;
   if(!parent)continue;
-  const dx=b.x-parent.x,dy=b.y-parent.y,d=Math.max(35,Math.hypot(dx,dy));
-  const combinedMass=gravityMass(parent)+gravityMass(b);
-  const speed=Math.sqrt(G*combinedMass/d)*.9;
-  const sign=b.dir||1;
-  b.vx=parent.vx+(-dy/d)*speed*sign;
-  b.vy=parent.vy+(dx/d)*speed*sign;
+  const dx=b.x-parent.x,dy=b.y-parent.y,d=Math.max(1,Math.hypot(dx,dy));
+  const ma=gravityMass(parent),mb=gravityMass(b),combinedMass=ma+mb;
+  // Match the softened pairwise gravity used by bodyAccelerations().
+  const speed=Math.sqrt(G*combinedMass*d*d/Math.pow(d*d+SOFT*SOFT,1.5));
+  const sign=b.dir||1,rvx=(-dy/d)*speed*sign,rvy=(dx/d)*speed*sign;
+  // Give the parent its barycentric recoil instead of treating it as fixed.
+  parent.vx-=rvx*mb/combinedMass;
+  parent.vy-=rvy*mb/combinedMass;
+  b.vx=parent.vx+rvx*ma/combinedMass*1+rvx*mb/combinedMass;
+  b.vy=parent.vy+rvy*ma/combinedMass*1+rvy*mb/combinedMass;
  }
 }
 function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}}
