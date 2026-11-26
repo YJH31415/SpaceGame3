@@ -42,7 +42,7 @@ function setLevel(n){camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='
  S.ship={x:spawn.x,y:spawn.y,vx:0,vy:0,angle:0,r:shipRadius,launched:false,safe:1.5};
  $('objectCount').textContent=String(S.bodies.length).padStart(2,'0');$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';$('statusText').textContent='GRAVITY FIELD STABLE';predict();
 }
-function gravityMass(b){const factor={blackhole:1.18,star:1.18,gas:2.376,ring:2.376,planet:5.4,moon:3.24,asteroid:2.16,comet:2.16};return b.mass*(factor[b.type]||1);}
+function gravityMass(b){const factor={blackhole:8,star:1.18,gas:2.376,ring:2.376,planet:5.4,moon:3.24,asteroid:2.16,comet:2.16};return b.mass*(factor[b.type]||1);}
 function systemBarycenter(bodies=S.bodies){let mass=0,x=0,y=0;for(const b of bodies){if(b.type==='ufo')continue;const m=gravityMass(b);mass+=m;x+=b.x*m;y+=b.y*m;}return mass?{x:x/mass,y:y/mass,mass}:center();}
 function recenterSystem(){const cm=systemBarycenter(),target=center(),dx=target.x-cm.x,dy=target.y-cm.y;for(const b of S.bodies){b.x+=dx;b.y+=dy;b.bx+=dx;b.by+=dy;}}
 function removeBarycenterVelocity(){const cm=systemBarycenter();let vx=0,vy=0;for(const b of S.bodies){if(b.type==='ufo')continue;const m=gravityMass(b);vx+=b.vx*m;vy+=b.vy*m;}vx/=cm.mass||1;vy/=cm.mass||1;for(const b of S.bodies){if(b.type==='ufo')continue;b.vx-=vx;b.vy-=vy;}}
