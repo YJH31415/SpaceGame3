@@ -54,7 +54,23 @@ function initializeOrbitalVelocities(){const bodies=S.bodies;for(const b of bodi
 function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}}
 function segmentDistanceSquared(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy;if(!len)return(px-x1)**2+(py-y1)**2;const t=clamp(((px-x1)*dx+(py-y1)*dy)/len,0,1),qx=x1+t*dx,qy=y1+t*dy;return(px-qx)**2+(py-qy)**2;}
 function updateAlienAI(dt){const p=S.ship,heading=p.angle,leadX=p.x+Math.cos(heading)*42,leadY=p.y+Math.sin(heading)*42;for(let i=0;i<S.aliens.length;i++){const a=S.aliens[i];a.think-=dt;if(a.think<=0){a.think=rand(1.8,3.2);a.role=(a.role+1+(i%3===0?1:0))%4;}const roleAngle=[Math.PI,Math.PI*.72,-Math.PI*.72,0][a.role],angle=heading+roleAngle+a.slotAngle*.22,radius=125+(i%3)*24,targetX=leadX+Math.cos(angle)*radius,targetY=leadY+Math.sin(angle)*radius;let sx=0,sy=0;for(let j=0;j<S.aliens.length;j++){if(i===j)continue;const b=S.aliens[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2>0&&d2<78*78){const d=Math.sqrt(d2),force=(78-d)/78;sx+=dx/d*force*210;sy+=dy/d*force*210;}}const dx=targetX-a.x,dy=targetY-a.y,d=Math.hypot(dx,dy)||1;let ax=dx/d*190+sx-a.vx*1.7,ay=dy/d*190+sy-a.vy*1.7,acc=Math.hypot(ax,ay);if(acc>260){ax=ax/acc*260;ay=ay/acc*260;}a.vx+=ax*dt;a.vy+=ay*dt;const speed=Math.hypot(a.vx,a.vy);if(speed>165){a.vx=a.vx/speed*165;a.vy=a.vy/speed*165;}a.x+=a.vx*dt;a.y+=a.vy*dt;}}
-function step(dt){if(S.level===11){const oldX=S.ship.x,oldY=S.ship.y;S.orbitAngle+=dt*.34;const q=S.planet,rad=q.r*S.orbitFactor;S.ship.x=q.x+Math.cos(S.orbitAngle)*rad;S.ship.y=q.y+Math.sin(S.orbitAngle)*rad;S.ship.vx=(S.ship.x-oldX)/dt;S.ship.vy=(S.ship.y-oldY)/dt;S.ship.angle=S.orbitAngle+Math.PI/2;updateAlienAI(dt);return;}moveBodies(dt);const p=S.ship;if(!p||!p.launched)return;const prevX=p.x,prevY=p.y,prevDoor=S.level===1&&S.secretDoor?{x:S.secretDoor.x,y:S.secretDoor.y}:null;if(S.level===1&&S.secretDoor){const sun=S.bodies.find(b=>b.type==='star'),d=S.secretDoor;d.angle=(d.angle+dt*.42)%(Math.PI*2);if(sun){d.x=sun.x+Math.cos(d.angle)*d.orbit;d.y=sun.y+Math.sin(d.angle)*d.orbit;}}let a=accel(p.x,p.y,S.bodies),repel=S.level===1?antiGravityAt(p.x,p.y,S.secretDoor):{x:0,y:0};p.vx+=(a.x+repel.x)*dt;p.vy+=(a.y+repel.y)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(Math.hypot(p.vx,p.vy)>2)p.angle=Math.atan2(p.vy,p.vx);if(S.level<=10){syncSteering(p.angle*180/Math.PI);}if(!Number.isFinite(p.x+p.y+p.vx+p.vy)){lose();return;}if(S.level===1&&S.secretDoor){const d=S.secretDoor,doorX=(d.x+(prevDoor?.x??d.x))*.5,doorY=(d.y+(prevDoor?.y??d.y))*.5,r=d.r+p.r+5;if(segmentDistanceSquared(doorX,doorY,prevX,prevY,p.x,p.y)<=r*r){S.total+=S.elapsed;S.elapsed=0;S.running=true;S.paused=false;setLevel(11);$('statusText').textContent='SECRET WORMHOLE FOUND';$('shipStatus').textContent='ORBITAL COMBAT';return;}}if(S.level<=10&&segmentDistanceSquared(S.worm.x,S.worm.y,prevX,prevY,p.x,p.y)<=(S.worm.r+p.r)**2){levelClear();return;}if(Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}}
+function updateKeyboardFlightControls(dt,p){
+ if(!S.running||S.paused||!p?.launched||S.level===11)return;
+ const turn=(heldFlightKeys.has('ArrowRight')?1:0)-(heldFlightKeys.has('ArrowLeft')?1:0);
+ if(turn){
+  const speed=Math.hypot(p.vx,p.vy),angle=Math.atan2(p.vy,p.vx)+turn*1.8*dt;
+  p.vx=Math.cos(angle)*speed;p.vy=Math.sin(angle)*speed;p.angle=angle;
+  syncSteering(angle*180/Math.PI);
+ }
+ const throttle=(heldFlightKeys.has('ArrowUp')?1:0)-(heldFlightKeys.has('ArrowDown')?1:0);
+ if(throttle){
+  const speed=clamp(Math.hypot(p.vx,p.vy)+throttle*90*dt,20,260);
+  const angle=Math.atan2(p.vy,p.vx);
+  p.vx=Math.cos(angle)*speed;p.vy=Math.sin(angle)*speed;
+  $('thrust').value=speed.toFixed(1);$('speedValue').textContent=speed.toFixed(1);
+ }
+}
+function step(dt){if(S.level===11){const oldX=S.ship.x,oldY=S.ship.y;S.orbitAngle+=dt*.34;const q=S.planet,rad=q.r*S.orbitFactor;S.ship.x=q.x+Math.cos(S.orbitAngle)*rad;S.ship.y=q.y+Math.sin(S.orbitAngle)*rad;S.ship.vx=(S.ship.x-oldX)/dt;S.ship.vy=(S.ship.y-oldY)/dt;S.ship.angle=S.orbitAngle+Math.PI/2;updateAlienAI(dt);return;}moveBodies(dt);const p=S.ship;if(!p||!p.launched)return;const prevX=p.x,prevY=p.y,prevDoor=S.level===1&&S.secretDoor?{x:S.secretDoor.x,y:S.secretDoor.y}:null;updateKeyboardFlightControls(dt,p);if(S.level===1&&S.secretDoor){const sun=S.bodies.find(b=>b.type==='star'),d=S.secretDoor;d.angle=(d.angle+dt*.42)%(Math.PI*2);if(sun){d.x=sun.x+Math.cos(d.angle)*d.orbit;d.y=sun.y+Math.sin(d.angle)*d.orbit;}}let a=accel(p.x,p.y,S.bodies),repel=S.level===1?antiGravityAt(p.x,p.y,S.secretDoor):{x:0,y:0};p.vx+=(a.x+repel.x)*dt;p.vy+=(a.y+repel.y)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(Math.hypot(p.vx,p.vy)>2)p.angle=Math.atan2(p.vy,p.vx);if(S.level<=10){syncSteering(p.angle*180/Math.PI);}if(!Number.isFinite(p.x+p.y+p.vx+p.vy)){lose();return;}if(S.level===1&&S.secretDoor){const d=S.secretDoor,doorX=(d.x+(prevDoor?.x??d.x))*.5,doorY=(d.y+(prevDoor?.y??d.y))*.5,r=d.r+p.r+5;if(segmentDistanceSquared(doorX,doorY,prevX,prevY,p.x,p.y)<=r*r){S.total+=S.elapsed;S.elapsed=0;S.running=true;S.paused=false;setLevel(11);$('statusText').textContent='SECRET WORMHOLE FOUND';$('shipStatus').textContent='ORBITAL COMBAT';return;}}if(S.level<=10&&segmentDistanceSquared(S.worm.x,S.worm.y,prevX,prevY,p.x,p.y)<=(S.worm.r+p.r)**2){levelClear();return;}if(Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}}
 function predict(){let p=S.ship;if(!p||S.level===11){S.path=[];return;}let x=p.x,y=p.y,previewAngle=+$('heading').value*Math.PI/180,previewSpeed=+$('thrust').value,vx=p.launched?p.vx:Math.cos(previewAngle)*previewSpeed,vy=p.launched?p.vy:Math.sin(previewAngle)*previewSpeed;if(!p.launched)p.angle=previewAngle;let bs=S.bodies.map(b=>({...b})),out=[],dt=1/60;for(let i=0;i<600;i++){const ba=bodyAccelerations(bs);for(let j=0;j<bs.length;j++){const b=bs[j];if(b.type==='ufo')continue;b.vx+=ba[j].x*dt;b.vy+=ba[j].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}const ac=accel(x,y,bs),repel=S.level===1?antiGravityAt(x,y,S.secretDoor):{x:0,y:0};vx+=(ac.x+repel.x)*dt;vy+=(ac.y+repel.y)*dt;x+=vx*dt;y+=vy*dt;if(!Number.isFinite(x+y)||Math.hypot(vx,vy)>1400)break;out.push({x,y});if(bs.some(b=>b.type!=='ufo'&&Math.hypot(x-b.x,y-b.y)<b.r+4)||Math.hypot(x-S.worm.x,y-S.worm.y)<S.worm.r)break;}S.path=out;}
 function launch(){if(S.level===11)return;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();}
 function rankData(){try{let v=JSON.parse(localStorage.getItem('spaceRescueRanks')||'[]');return Array.isArray(v)?v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time)):[];}catch(e){return[];}}
@@ -94,18 +110,35 @@ steeringWheel.addEventListener('pointerdown',e=>{if(!S.running||S.paused||!S.shi
 steeringWheel.addEventListener('pointermove',e=>{if(steeringPointer!==e.pointerId)return;const r=steeringWheel.getBoundingClientRect();const a=Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2))*180/Math.PI;setSteering(a);});
 function endSteering(e){if(steeringPointer===e.pointerId)steeringPointer=null;}
 steeringWheel.addEventListener('pointerup',endSteering);steeringWheel.addEventListener('pointercancel',endSteering);
-// PC 키보드 방향 조종: 좌우 화살표를 누르는 동안 진행 방향을 조금씩 회전한다.
-const steeringKeys=new Set(['ArrowLeft','ArrowRight']);
+// PC 키보드 비행 조작: 좌우는 연속 선회, 위아래는 현재 속도 조절.
+const flightKeys=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown']);
+const heldFlightKeys=new Set();
+function updateKeyboardFlightControls(dt,p){
+ if(!S.running||S.paused||!p?.launched||S.level===11)return;
+ const turn=(heldFlightKeys.has('ArrowRight')?1:0)-(heldFlightKeys.has('ArrowLeft')?1:0);
+ if(turn){
+  const speed=Math.hypot(p.vx,p.vy),angle=Math.atan2(p.vy,p.vx)+turn*1.8*dt;
+  p.vx=Math.cos(angle)*speed;p.vy=Math.sin(angle)*speed;p.angle=angle;
+  syncSteering(angle*180/Math.PI);
+ }
+ const throttle=(heldFlightKeys.has('ArrowUp')?1:0)-(heldFlightKeys.has('ArrowDown')?1:0);
+ if(throttle){
+  const speed=clamp(Math.hypot(p.vx,p.vy)+throttle*90*dt,20,260);
+  const angle=Math.atan2(p.vy,p.vx);
+  p.vx=Math.cos(angle)*speed;p.vy=Math.sin(angle)*speed;
+  $('thrust').value=speed.toFixed(1);$('speedValue').textContent=speed.toFixed(1);
+ }
+}
 document.addEventListener('keydown',e=>{
- if(!steeringKeys.has(e.key)||!S.running||S.paused||!S.ship?.launched||S.level===11)return;
+ if(!flightKeys.has(e.key)||!S.running||S.paused||!S.ship?.launched||S.level===11)return;
  const el=document.activeElement;
  if(el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)))return;
- e.preventDefault();
- if(e.repeat||!steeringKeys.has(e.key))return;
- const direction=e.key==='ArrowLeft'?-1:1;
- setSteering((Math.atan2(S.ship.vy,S.ship.vx)*180/Math.PI)+direction*5);
+ e.preventDefault();heldFlightKeys.add(e.key);
 });
-document.addEventListener('keyup',e=>{if(steeringKeys.has(e.key)&&S.running)e.preventDefault();});
+document.addEventListener('keyup',e=>{
+ if(flightKeys.has(e.key)){heldFlightKeys.delete(e.key);if(S.running)e.preventDefault();}
+});
+addEventListener('blur',()=>heldFlightKeys.clear());
 document.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>exportRanks(b.dataset.export));$('importRanks').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let v=JSON.parse(await f.text());if(!Array.isArray(v))throw Error();let clean=v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time));localStorage.setItem('spaceRescueRanks',JSON.stringify([...rankData(),...clean].sort((a,b)=>b.level-a.level||a.time-b.time).slice(0,500)));showRanks();alert('랭킹 백업을 가져왔습니다.');}catch(err){alert('올바른 랭킹 JSON 파일이 아닙니다.');}e.target.value='';};
 $('marsWeapon').onclick=()=>fire('mars');$('beamWeapon').onclick=()=>fire('beam');$('orbitDistance').addEventListener('input',()=>{S.orbitFactor=+$('orbitDistance').value;$('orbitDistanceValue').textContent=S.orbitFactor.toFixed(1)+'×';if(S.level===11&&S.planet&&S.ship){const r=S.planet.r*S.orbitFactor;S.ship.x=S.planet.x+Math.cos(S.orbitAngle)*r;S.ship.y=S.planet.y+Math.sin(S.orbitAngle)*r;}});
 function infoAt(p){let b=S.bodies.find(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r+10);if(!b)return;$('infoName').textContent=b.name;let vals=[['종류',b.type],['질량(게임 단위)',b.mass.toLocaleString()],['반지름',b.r.toFixed(1)],['표면 중력',(G*b.mass/(b.r*b.r+SOFT)).toFixed(2)],['속도',Math.hypot(b.vx,b.vy).toFixed(2)],['공전 방향',b.dir>0?'반시계':'시계']];$('infoDetails').innerHTML=vals.map(v=>'<div class="info-line"><span>'+v[0]+'</span><b>'+safe(v[1])+'</b></div>').join('');$('infoCard').classList.remove('hidden');}
