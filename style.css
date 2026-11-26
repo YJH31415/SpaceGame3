@@ -10,3 +10,13 @@
 #space{touch-action:none;cursor:grab}
 #space:active{cursor:grabbing}
 @media(max-width:760px){.map-tools{top:68px;right:9px;gap:4px;padding:4px 5px}.map-tools button{width:27px;height:25px}.map-tools span{min-width:36px;font-size:9px}}
+
+/* In-flight steering dial; shares its angle with the existing heading slider. */
+.steering-wheel{--wheel-angle:0deg;position:absolute;z-index:5;left:24px;bottom:96px;width:112px;height:112px;border-radius:50%;display:none;align-items:center;justify-content:center;flex-direction:column;gap:4px;background:rgba(5,15,34,.78);border:1px solid rgba(103,233,255,.42);box-shadow:0 0 24px #35cfff22;backdrop-filter:blur(8px);touch-action:none;user-select:none;cursor:grab}
+.steering-wheel.visible{display:flex}
+.wheel-ring{position:relative;width:78px;height:78px;border:5px solid #7bdff2;border-radius:50%;box-shadow:inset 0 0 12px #49caff44,0 0 12px #49caff33;transform:rotate(var(--wheel-angle))}
+.wheel-spoke{position:absolute;left:50%;top:4px;width:4px;height:30px;transform:translateX(-50%);background:#e8fbff;border-radius:4px;box-shadow:0 0 8px #72eaff}
+.wheel-hub{position:absolute;left:50%;top:50%;width:15px;height:15px;transform:translate(-50%,-50%);border-radius:50%;background:#57cde9;border:2px solid #e4fbff}
+.wheel-grip{position:absolute;left:50%;bottom:-5px;width:27px;height:12px;transform:translateX(-50%);border-radius:4px;background:#58b9d2;border:1px solid #b4f5ff}
+.steering-wheel>span{font:8px Orbitron,sans-serif;letter-spacing:1.5px;color:#9ceeff}
+@media(max-width:760px){.steering-wheel{left:12px;bottom:145px;width:94px;height:94px}.wheel-ring{width:66px;height:66px}.wheel-spoke{height:25px}}
