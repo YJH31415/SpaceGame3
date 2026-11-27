@@ -108,7 +108,11 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
    scout.cooldown-=dt;
    if(S.scoutAttackAge>=1.5&&scout.cooldown<=0){
     const laserSpeed=W*.48,aim=interceptPoint(scout,p,laserSpeed,S.bodies),lx=aim.x-scout.x,ly=aim.y-scout.y;
-    const spread=S.difficulty==='easy'?.09:S.difficulty==='normal'?.035:0,angle=Math.atan2(ly,lx)+(spread?rand(-spread,spread):0);
+    const baseSpread=S.difficulty==='easy'?.09:S.difficulty==='normal'?.035:0;
+    // Recalculate each alien's distance at the instant it fires: farther targets get a tighter angular spread.
+    const targetDistance=Math.hypot(p.x-scout.x,p.y-scout.y);
+    const distanceFactor=clamp(300/Math.max(1,targetDistance),.35,2.2);
+    const spread=baseSpread*distanceFactor,angle=Math.atan2(ly,lx)+(spread?rand(-spread,spread):0);
     S.enemyShots.push({x:scout.x,y:scout.y,vx:Math.cos(angle)*laserSpeed,vy:Math.sin(angle)*laserSpeed,life:Math.min(5,aim.time+1)});
     scout.cooldown=rand(2.2,3.4);
    }
