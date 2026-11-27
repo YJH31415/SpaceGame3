@@ -131,8 +131,31 @@ function applyDamage(amount){
  clearTimeout(S.damageFlashTimer);S.damageFlashTimer=setTimeout(()=>document.body.classList.remove('damage-flash'),320);
  if(S.health<=0)lose();return true;
 }
-function moveAsteroids(dt){for(const a of S.asteroids){const g=gravityAt(a.x,a.y,S.bodies);a.vx+=g.x*dt*.22;a.vy+=g.y*dt*.22;a.x+=a.vx*dt;a.y+=a.vy*dt;a.angle+=a.spin*dt;const m=30;if(a.x<-m)a.x=W+m;else if(a.x>W+m)a.x=-m;if(a.y<-m)a.y=H+m;else if(a.y>H+m)a.y=-m;}}
-function moveOortAsteroids(dt){for(const a of S.oortAsteroids){a.angle=(a.angle+a.angularSpeed*dt)%TAU;a.x=a.anchor.x+Math.cos(a.angle)*a.orbitRadius;a.y=a.anchor.y+Math.sin(a.angle)*a.orbitRadius;a.rotation+=a.spin*dt;}}
+function fragmentAsteroid(a,targetList=S.asteroids){
+ if(S.asteroids.length+S.oortAsteroids.length>=600)return;
+ const count=2+Math.floor(Math.random()*2),base=Math.max(1.15,a.r*.56),impactSpeed=Math.hypot(a.vx||0,a.vy||0);
+ for(let i=0;i<count&&S.asteroids.length+S.oortAsteroids.length<600;i++){
+  const angle=rand(0,TAU),kick=rand(16,38)+impactSpeed*.16,r=base*rand(.78,1.12);
+  targetList.push({x:a.x+Math.cos(angle)*(a.r+r*.7),y:a.y+Math.sin(angle)*(a.r+r*.7),vx:(a.vx||0)+Math.cos(angle)*kick,vy:(a.vy||0)+Math.sin(angle)*kick,r,angle:rand(0,TAU),spin:rand(-1.1,1.1)});
+ }
+}
+function asteroidHitBody(a){
+ for(const b of S.bodies){if(b.type==='ufo')continue;const dx=a.x-b.x,dy=a.y-b.y,rr=a.r+b.r;if(dx*dx+dy*dy<rr*rr)return b;}
+ return null;
+}
+function moveAsteroids(dt){
+ for(let i=S.asteroids.length-1;i>=0;i--){
+  const a=S.asteroids[i],g=gravityAt(a.x,a.y,S.bodies);a.vx+=g.x*dt*.22;a.vy+=g.y*dt*.22;a.x+=a.vx*dt;a.y+=a.vy*dt;a.angle+=a.spin*dt;
+  if(asteroidHitBody(a)){S.asteroids.splice(i,1);fragmentAsteroid(a);continue;}
+  const m=30;if(a.x<-m)a.x=W+m;else if(a.x>W+m)a.x=-m;if(a.y<-m)a.y=H+m;else if(a.y>H+m)a.y=-m;
+ }
+}
+function moveOortAsteroids(dt){
+ for(let i=S.oortAsteroids.length-1;i>=0;i--){
+  const a=S.oortAsteroids[i];a.angle=(a.angle+a.angularSpeed*dt)%TAU;a.x=a.anchor.x+Math.cos(a.angle)*a.orbitRadius;a.y=a.anchor.y+Math.sin(a.angle)*a.orbitRadius;a.rotation+=a.spin*dt;
+  if(asteroidHitBody(a)){S.oortAsteroids.splice(i,1);fragmentAsteroid(a);}
+ }
+}
 function updateAlienPortals(dt){
  const p=S.ship;if(!p||!p.launched)return;S.portalEffects=S.portalEffects||[];
  for(const a of S.aliens){if(!a.cloned)continue;a.portalCooldown=(a.portalCooldown??rand(7,12))-dt;if(a.portalCooldown>0)continue;a.portalCooldown=rand(9,15);if(Math.random()>.24||S.portalEffects.some(q=>q.alien===a))continue;
