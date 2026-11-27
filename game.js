@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,tutorialMode:false,tutorialStage:1,tutorialFlags:{},tutorialFinished:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[]};
+const S={running:false,paused:false,tutorialMode:false,tutorialStage:1,tutorialFlags:{},tutorialFinished:false,aliensEnabled:(()=>{try{return localStorage.getItem('spaceRescueAliensEnabled')!=='off';}catch(e){return true;}})(),level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[]};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -50,7 +50,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
   if(bodyGap>28&&wormGap>28)validScoutSpots.push({x:xx,y:yy});
  }
  if(validScoutSpots.length)scout=validScoutSpots[Math.floor(Math.random()*validScoutSpots.length)];
- S.scoutAttackAge=0;S.scoutCloneAge=0;S.aliens=[{x:scout.x,y:scout.y,vx:0,vy:0,r:9,side:Math.random()<.5?-1:1,cooldown:rand(2.1,3.2),cloned:false}];
+ S.scoutAttackAge=0;S.scoutCloneAge=0;S.aliens=S.aliensEnabled?[{x:scout.x,y:scout.y,vx:0,vy:0,r:9,side:Math.random()<.5?-1:1,cooldown:rand(2.1,3.2),cloned:false}]:[];
  $('objectCount').textContent=String(S.bodies.length).padStart(2,'0');$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';$('statusText').textContent='GRAVITY FIELD STABLE';predict();
 }
 function gravityMass(b){const factor={blackhole:8,star:1.18,gas:2.376,ring:2.376,planet:5.4,moon:3.24,asteroid:2.16,comet:2.16};return b.mass*(factor[b.type]||1);}
@@ -213,7 +213,7 @@ function drawCombat(t){const q=S.planet;let pg=ctx.createRadialGradient(q.x-q.r*
 function draw(t){bg(t);ctx.save();ctx.translate(W/2+camera.x,H/2+camera.y);ctx.scale(camera.zoom,camera.zoom);ctx.translate(-W/2,-H/2);if(S.level===11){drawCombat(t);ship(S.ship);}else{S.bodies.forEach(b=>body(b,t));drawUfoAttack();secretDoor(t);worm(t);drawGhostPath();drawPortals(t);drawPath();drawScoutShots();S.aliens.forEach(a=>drawScoutAlien(a,t));ship(S.ship);}ctx.restore();}
 function loop(now){requestAnimationFrame(loop);let raw=Math.min(.05,(now-S.last)/1000||0);S.last=now;if(S.running&&!S.paused){S.elapsed+=raw;S.acc+=raw*S.rate;let dt=1/120,steps=0;while(S.acc>=dt&&steps<12){step(dt);S.acc-=dt;steps++;}if(steps===12)S.acc=0;pathClock+=raw;if(pathClock>.2){predict();pathClock=0;}if(S.level<=10){
  if(S.ship?.launched){S.scoutAttackAge=(S.scoutAttackAge||0)+raw;S.scoutCloneAge=(S.scoutCloneAge||0)+raw;}
- while(S.ship?.launched&&S.scoutCloneAge>=5){
+ while(S.aliensEnabled&&S.ship?.launched&&S.scoutCloneAge>=5){
   S.scoutCloneAge-=5;
   const current=S.aliens.length,limit=64,add=Math.min(current,limit-current);
   if(add>0){
@@ -262,6 +262,11 @@ const difficultyButtons=[...document.querySelectorAll('[data-difficulty]')];
 function renderDifficulty(){difficultyButtons.forEach(btn=>btn.classList.toggle('selected',btn.dataset.difficulty===S.difficulty));}
 difficultyButtons.forEach(btn=>btn.addEventListener('click',()=>{S.difficulty=btn.dataset.difficulty;$('difficultyWarning').classList.add('hidden');renderDifficulty();}));
 renderDifficulty();
+
+const alienToggleButtons=[...document.querySelectorAll('[data-aliens]')];
+function renderAlienToggle(){alienToggleButtons.forEach(btn=>{const selected=(btn.dataset.aliens==='on')===S.aliensEnabled;btn.classList.toggle('selected',selected);btn.setAttribute('aria-pressed',String(selected));});}
+alienToggleButtons.forEach(btn=>btn.addEventListener('click',()=>{S.aliensEnabled=btn.dataset.aliens==='on';try{localStorage.setItem('spaceRescueAliensEnabled',S.aliensEnabled?'on':'off');}catch(e){}renderAlienToggle();}));
+renderAlienToggle();
 renderRefreshCountdown();
 const miniAd=$('miniAd');
 $('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
