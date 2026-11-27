@@ -41,7 +41,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
  }
  S.ship={x:spawn.x,y:spawn.y,vx:0,vy:0,angle:0,r:shipRadius,launched:false,safe:1.5};
  // Independent drifting asteroid field; rocks never steer toward the player.
- const asteroidCount=Math.min(9,2+Math.ceil(n*.7));
+ const asteroidCount=Math.min(28,8+n*2);
  for(let i=0;i<asteroidCount;i++){let pos=null;for(let k=0;k<100;k++){const x=rand(24,W-24),y=rand(55,H-24),clearShip=Math.hypot(x-S.ship.x,y-S.ship.y),clearWorm=Math.hypot(x-S.worm.x,y-S.worm.y),clearBody=S.bodies.every(b=>Math.hypot(x-b.x,y-b.y)>b.r+42);if(clearShip>115&&clearWorm>S.worm.r+55&&clearBody){pos={x,y};break;}}if(!pos)pos={x:rand(25,W-25),y:rand(55,H-25)};const speed=rand(18,48),angle=rand(0,TAU);S.asteroids.push({x:pos.x,y:pos.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,r:rand(5,10)*Math.min(1.15,scale()),angle:rand(0,TAU),spin:rand(-.8,.8)});}
  // 오르트구름은 독립된 공전 궤도로 갱신한다. 천체의 섭동으로 궤도가 무너지거나 서로 섞이지 않는다.
  const oortAnchor=S.bodies.filter(b=>b.type==='star'||b.type==='blackhole').sort((a,b)=>b.mass-a.mass)[0]||S.bodies.reduce((a,b)=>!a||b.mass>a.mass?b:a,null);
