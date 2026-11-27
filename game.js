@@ -42,7 +42,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
  S.ship={x:spawn.x,y:spawn.y,vx:0,vy:0,angle:0,r:shipRadius,launched:false,safe:1.5};
  // Independent drifting asteroid field; rocks never steer toward the player.
  const asteroidCount=Math.min(28,8+n*2);
- for(let i=0;i<asteroidCount;i++){let pos=null;for(let k=0;k<100;k++){const x=rand(24,W-24),y=rand(55,H-24),clearShip=Math.hypot(x-S.ship.x,y-S.ship.y),clearWorm=Math.hypot(x-S.worm.x,y-S.worm.y),clearBody=S.bodies.every(b=>Math.hypot(x-b.x,y-b.y)>b.r+42);if(clearShip>115&&clearWorm>S.worm.r+55&&clearBody){pos={x,y};break;}}if(!pos)pos={x:rand(25,W-25),y:rand(55,H-25)};const speed=rand(18,48),angle=rand(0,TAU);S.asteroids.push({x:pos.x,y:pos.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,r:rand(5,10)*Math.min(1.15,scale()),angle:rand(0,TAU),spin:rand(-.8,.8)});}
+ for(let i=0;i<asteroidCount;i++){let pos=null;for(let k=0;k<100;k++){const x=rand(24,W-24),y=rand(55,H-24),clearShip=Math.hypot(x-S.ship.x,y-S.ship.y),clearWorm=Math.hypot(x-S.worm.x,y-S.worm.y),clearBody=S.bodies.every(b=>Math.hypot(x-b.x,y-b.y)>b.r+42);if(clearShip>115&&clearWorm>S.worm.r+55&&clearBody){pos={x,y};break;}}if(!pos)pos={x:rand(25,W-25),y:rand(55,H-25)};const speed=rand(18,48),angle=rand(0,TAU),size=rand(5,10)*Math.min(1.15,scale());S.asteroids.push({x:pos.x,y:pos.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,r:size,originalSize:size,angle:rand(0,TAU),spin:rand(-.8,.8)});}
  // 오르트구름은 독립된 공전 궤도로 갱신한다. 천체의 섭동으로 궤도가 무너지거나 서로 섞이지 않는다.
  const oortAnchor=S.bodies.filter(b=>b.type==='star'||b.type==='blackhole').sort((a,b)=>b.mass-a.mass)[0]||S.bodies.reduce((a,b)=>!a||b.mass>a.mass?b:a,null);
  if(oortAnchor){
@@ -56,7 +56,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
    const phase=rand(0,TAU),direction=1,angularSpeed=Math.sqrt(orbitalGravity/Math.max(1,radius*radius*radius))*.72;
    for(let i=0;i<count;i++){
     const angle=phase+i*TAU/count+rand(-.012,.012);
-    S.oortAsteroids.push({anchor:oortAnchor,orbitRadius:radius,angle,angularSpeed:angularSpeed*direction,x:oortAnchor.x+Math.cos(angle)*radius,y:oortAnchor.y+Math.sin(angle)*radius,r:rand(2.2,4.8)*Math.min(1.15,scale()),rotation:rand(0,TAU),spin:rand(-.65,.65)});
+    const size=rand(2.2,4.8)*Math.min(1.15,scale());S.oortAsteroids.push({anchor:oortAnchor,orbitRadius:radius,angle,angularSpeed:angularSpeed*direction,x:oortAnchor.x+Math.cos(angle)*radius,y:oortAnchor.y+Math.sin(angle)*radius,r:size,originalSize:size,rotation:rand(0,TAU),spin:rand(-.65,.65)});
    }
   }
  }
@@ -85,9 +85,9 @@ function antiGravityAt(x,y,door){if(!door)return{x:0,y:0};const dx=x-door.x,dy=y
 function initializeOrbitalVelocities(){const bodies=S.bodies.filter(b=>b.type!=='ufo');if(!bodies.length)return;const cm=systemBarycenter(bodies),totalMass=cm.mass;for(const b of bodies){const dx=b.x-cm.x,dy=b.y-cm.y,r=Math.hypot(dx,dy);if(r<Math.max(18,b.r*.5)){b.vx=0;b.vy=0;continue;}const speed=Math.sqrt(G*Math.max(1,totalMass-gravityMass(b))/r)*.88*rand(.985,1.015),sign=b.dir||1;b.vx=-dy/r*speed*sign;b.vy=dx/r*speed*sign;}}
 function isFragmentingWorld(b){return b.type==='planet'||b.type==='gas'||b.type==='ring'||b.type==='moon';}
 function fragmentWorldCollision(a,b){
- const count=4+Math.floor(Math.random()*3),mass=Math.max(1,(a.mass+b.mass)/count),cx=(a.x*a.mass+b.x*b.mass)/(a.mass+b.mass),cy=(a.y*a.mass+b.y*b.mass)/(a.mass+b.mass),vx=(a.vx*a.mass+b.vx*b.mass)/(a.mass+b.mass),vy=(a.vy*a.mass+b.vy*b.mass)/(a.mass+b.mass),radius=Math.max(a.r,b.r)*.34;
+ const count=4+Math.floor(Math.random()*3),mass=Math.max(1,(a.mass+b.mass)/count),originalSize=Math.max(a.originalSize||a.r,b.originalSize||b.r),cx=(a.x*a.mass+b.x*b.mass)/(a.mass+b.mass),cy=(a.y*a.mass+b.y*b.mass)/(a.mass+b.mass),vx=(a.vx*a.mass+b.vx*b.mass)/(a.mass+b.mass),vy=(a.vy*a.mass+b.vy*b.mass)/(a.mass+b.mass),radius=Math.max(a.r,b.r)*.34;
  const fragments=[];
- for(let i=0;i<count;i++){const ang=TAU*i/count+rand(-.16,.16),kick=rand(24,62),dist=Math.max(a.r,b.r)*.58;fragments.push({name:'WORLD FRAGMENT',type:'asteroid',x:cx+Math.cos(ang)*dist,y:cy+Math.sin(ang)*dist,vx:vx+Math.cos(ang)*kick,vy:vy+Math.sin(ang)*kick,r:radius*rand(.82,1.12),mass,dir:1,tilt:0,rotation:rand(0,TAU)});}
+ for(let i=0;i<count;i++){const ang=TAU*i/count+rand(-.16,.16),kick=rand(24,62),dist=Math.max(a.r,b.r)*.58;fragments.push({name:'WORLD FRAGMENT',type:'asteroid',x:cx+Math.cos(ang)*dist,y:cy+Math.sin(ang)*dist,vx:vx+Math.cos(ang)*kick,vy:vy+Math.sin(ang)*kick,r:radius*rand(.82,1.12),originalSize,mass,dir:1,tilt:0,rotation:rand(0,TAU)});}
  return fragments;
 }
 function resolveWorldCollisions(){
@@ -149,11 +149,13 @@ function applyDamage(amount){
  if(S.health<=0)lose();return true;
 }
 function fragmentAsteroid(a,targetList=S.asteroids){
- if(S.asteroids.length+S.oortAsteroids.length>=600)return;
- const count=2+Math.floor(Math.random()*2),base=Math.max(1.15,a.r*.56),impactSpeed=Math.hypot(a.vx||0,a.vy||0);
+ const originalSize=a.originalSize||a.r,minimumSize=originalSize/40;
+ if(a.r<=minimumSize*1.08||S.asteroids.length+S.oortAsteroids.length>=600)return;
+ const count=2+Math.floor(Math.random()*2),base=a.r*.56,impactSpeed=Math.hypot(a.vx||0,a.vy||0);
  for(let i=0;i<count&&S.asteroids.length+S.oortAsteroids.length<600;i++){
   const angle=rand(0,TAU),kick=rand(16,38)+impactSpeed*.16,r=base*rand(.78,1.12);
-  targetList.push({x:a.x+Math.cos(angle)*(a.r+r*.7),y:a.y+Math.sin(angle)*(a.r+r*.7),vx:(a.vx||0)+Math.cos(angle)*kick,vy:(a.vy||0)+Math.sin(angle)*kick,r,angle:rand(0,TAU),spin:rand(-1.1,1.1)});
+  if(r<=minimumSize)continue;
+  targetList.push({x:a.x+Math.cos(angle)*(a.r+r*.7),y:a.y+Math.sin(angle)*(a.r+r*.7),vx:(a.vx||0)+Math.cos(angle)*kick,vy:(a.vy||0)+Math.sin(angle)*kick,r,originalSize,angle:rand(0,TAU),spin:rand(-1.1,1.1)});
  }
 }
 function asteroidHitBody(a){
