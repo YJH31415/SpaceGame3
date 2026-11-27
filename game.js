@@ -71,10 +71,9 @@ function interceptPoint(shooter,target,speed,targetBodies=S.level===11?[S.planet
  let angle=Math.atan2(target.y-shooter.y,target.x-shooter.x),flightTime=Math.min(4.5,Math.hypot(target.x-shooter.x,target.y-shooter.y)/speed),aim={x:target.x,y:target.y};
  for(let pass=0;pass<4;pass++){
   const bs=targetBodies.map(b=>({...b}));let tx=target.x,ty=target.y,tvx=target.vx||0,tvy=target.vy||0,lx=shooter.x,ly=shooter.y,lvx=Math.cos(angle)*speed,lvy=Math.sin(angle)*speed,elapsed=0,dt=.04;
-  while(elapsed<4.5){const h=Math.min(dt,4.5-elapsed),ba=bodyAccelerations(bs);for(let i=0;i<bs.length;i++){const b=bs[i];if(b.type==='ufo')continue;b.vx+=ba[i].x*h;b.vy+=ba[i].y*h;b.x+=b.vx*h;b.y+=b.vy*h;}
+  while(elapsed<flightTime){const h=Math.min(dt,flightTime-elapsed),ba=bodyAccelerations(bs);for(let i=0;i<bs.length;i++){const b=bs[i];if(b.type==='ufo')continue;b.vx+=ba[i].x*h;b.vy+=ba[i].y*h;b.x+=b.vx*h;b.y+=b.vy*h;}
    const ta=gravityAt(tx,ty,bs),la=gravityAt(lx,ly,bs);tvx+=ta.x*h;tvy+=ta.y*h;tx+=tvx*h;ty+=tvy*h;lvx+=la.x*h;lvy+=la.y*h;const oldX=lx,oldY=ly;lx+=lvx*h;ly+=lvy*h;elapsed+=h;
-   if(Math.hypot(lx-tx,ly-ty)<Math.max(8,speed*h*.65)){flightTime=elapsed;break;}
-   if(elapsed>=flightTime&&pass>0)break;
+
   }
   aim={x:tx,y:ty};const ex=tx-lx,ey=ty-ly,dist=Math.hypot(ex,ey)||1,dir=Math.atan2(lvy,lvx),correction=Math.atan2(Math.cos(dir)*ey-Math.sin(dir)*ex,Math.max(20,Math.hypot(tx-shooter.x,ty-shooter.y)));
   angle+=clamp(correction,-.42,.42);flightTime=clamp(Math.hypot(tx-shooter.x,ty-shooter.y)/speed,.08,4.5);
