@@ -144,14 +144,21 @@ function updateAlienPortals(dt){
 }
 function updateAlienAI(dt){const p=S.ship,heading=p.angle,leadX=p.x+Math.cos(heading)*42,leadY=p.y+Math.sin(heading)*42;for(let i=0;i<S.aliens.length;i++){const a=S.aliens[i];a.think-=dt;if(a.think<=0){a.think=rand(1.8,3.2);a.role=(a.role+1+(i%3===0?1:0))%4;}const roleAngle=[Math.PI,Math.PI*.72,-Math.PI*.72,0][a.role],angle=heading+roleAngle+a.slotAngle*.22,radius=125+(i%3)*24,targetX=leadX+Math.cos(angle)*radius,targetY=leadY+Math.sin(angle)*radius;let sx=0,sy=0;for(let j=0;j<S.aliens.length;j++){if(i===j)continue;const b=S.aliens[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2>0&&d2<78*78){const d=Math.sqrt(d2),force=(78-d)/78;sx+=dx/d*force*210;sy+=dy/d*force*210;}}const dx=targetX-a.x,dy=targetY-a.y,d=Math.hypot(dx,dy)||1;let ax=dx/d*190+sx-a.vx*1.7,ay=dy/d*190+sy-a.vy*1.7,acc=Math.hypot(ax,ay);if(acc>260){ax=ax/acc*260;ay=ay/acc*260;}a.vx+=ax*dt;a.vy+=ay*dt;const speed=Math.hypot(a.vx,a.vy);if(speed>165){a.vx=a.vx/speed*165;a.vy=a.vy/speed*165;}a.x+=a.vx*dt;a.y+=a.vy*dt;}}
 function updateKeyboardFlightControls(dt,p){
- if(!S.running||S.paused||!p?.launched||S.level===11)return;
+ if(!S.running||S.paused||!p||S.level===11)return;
  const turn=(heldFlightKeys.has('ArrowRight')?1:0)-(heldFlightKeys.has('ArrowLeft')?1:0);
+ const throttle=(heldFlightKeys.has('ArrowUp')?1:0)-(heldFlightKeys.has('ArrowDown')?1:0);
+ if(!p.launched){
+  let angle=+$('heading').value*Math.PI/180;
+  if(turn){angle+=turn*1.8*dt;syncSteering(angle*180/Math.PI);p.angle=angle;}
+  if(throttle){const speed=clamp(+$('thrust').value+throttle*90*dt,20,260);$('thrust').value=speed.toFixed(1);$('speedValue').textContent=speed.toFixed(1);}
+  if(turn||throttle)predict();
+  return;
+ }
  if(turn){
   const speed=Math.hypot(p.vx,p.vy),angle=Math.atan2(p.vy,p.vx)+turn*1.8*dt;
   p.vx=Math.cos(angle)*speed;p.vy=Math.sin(angle)*speed;p.angle=angle;
   syncSteering(angle*180/Math.PI);
  }
- const throttle=(heldFlightKeys.has('ArrowUp')?1:0)-(heldFlightKeys.has('ArrowDown')?1:0);
  if(throttle){
   const speed=clamp(Math.hypot(p.vx,p.vy)+throttle*90*dt,20,260);
   const angle=Math.atan2(p.vy,p.vx);
@@ -159,7 +166,7 @@ function updateKeyboardFlightControls(dt,p){
   $('thrust').value=speed.toFixed(1);$('speedValue').textContent=speed.toFixed(1);
  }
 }
-function step(dt){S.damageCooldown=Math.max(0,(S.damageCooldown||0)-dt);if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y,[q]);p.vx+=a.x*dt;p.vy+=a.y*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.angle=Math.atan2(p.vy,p.vx);if(Math.hypot(p.x-q.x,p.y-q.y)<=q.r+p.r){lose();return;}updateAlienAI(dt);for(const shot of S.enemyShots){const sx=shot.x,sy=shot.y;if(shot.gravity)advanceGravityProjectile(shot,dt,[q]);else{shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;}shot.life-=dt;if(!shot.hit&&segmentDistanceSquared(p.x,p.y,sx,sy,shot.x,shot.y)<=(p.r+5)**2){shot.hit=true;applyDamage(30);if(S.health<=0)return;}}S.enemyShots=S.enemyShots.filter(shot=>shot.life>0&&!shot.hit);return;}const prevWorm=S.worm?{x:S.worm.x,y:S.worm.y}:null;moveBodies(dt);moveAsteroids(dt);moveOortAsteroids(dt);if(S.worm?.anchor){S.worm.angle+=dt*.09;S.worm.x=S.worm.anchor.x+Math.cos(S.worm.angle)*S.worm.orbit;S.worm.y=S.worm.anchor.y+Math.sin(S.worm.angle)*S.worm.orbit;}const p=S.ship;if(!p||!p.launched)return;const prevX=p.x,prevY=p.y,prevDoor=S.level===1&&S.secretDoor?{x:S.secretDoor.x,y:S.secretDoor.y}:null;updateKeyboardFlightControls(dt,p);if(!S.tutorialMode&&S.level===1&&S.secretDoor){const sun=S.bodies.find(b=>b.type==='star'),d=S.secretDoor;d.angle=(d.angle+dt*.42)%(Math.PI*2);if(sun){d.x=sun.x+Math.cos(d.angle)*d.orbit;d.y=sun.y+Math.sin(d.angle)*d.orbit;}}let a=accel(p.x,p.y,S.bodies),repel=S.level===1?antiGravityAt(p.x,p.y,S.secretDoor):{x:0,y:0};p.vx+=(a.x+repel.x)*dt;p.vy+=(a.y+repel.y)*dt;const localSpeedFactor=blackHoleSpeedFactor(p.x,p.y,S.bodies);p.x+=p.vx*dt*localSpeedFactor;p.y+=p.vy*dt*localSpeedFactor;S.traceClock+=dt;if(S.traceClock>=.1){S.traceClock=0;if(S.flightTrace.length<1800)S.flightTrace.push(captureTracePoint(p.x,p.y,S.elapsed));}if(Math.hypot(p.vx,p.vy)>2)p.angle=Math.atan2(p.vy,p.vx);
+function step(dt){S.damageCooldown=Math.max(0,(S.damageCooldown||0)-dt);if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y,[q]);p.vx+=a.x*dt;p.vy+=a.y*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.angle=Math.atan2(p.vy,p.vx);if(Math.hypot(p.x-q.x,p.y-q.y)<=q.r+p.r){lose();return;}updateAlienAI(dt);for(const shot of S.enemyShots){const sx=shot.x,sy=shot.y;if(shot.gravity)advanceGravityProjectile(shot,dt,[q]);else{shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;}shot.life-=dt;if(!shot.hit&&segmentDistanceSquared(p.x,p.y,sx,sy,shot.x,shot.y)<=(p.r+5)**2){shot.hit=true;applyDamage(30);if(S.health<=0)return;}}S.enemyShots=S.enemyShots.filter(shot=>shot.life>0&&!shot.hit);return;}const prevWorm=S.worm?{x:S.worm.x,y:S.worm.y}:null;moveBodies(dt);moveAsteroids(dt);moveOortAsteroids(dt);if(S.worm?.anchor){S.worm.angle+=dt*.09;S.worm.x=S.worm.anchor.x+Math.cos(S.worm.angle)*S.worm.orbit;S.worm.y=S.worm.anchor.y+Math.sin(S.worm.angle)*S.worm.orbit;}const p=S.ship;if(!p)return;updateKeyboardFlightControls(dt,p);if(!p.launched)return;const prevX=p.x,prevY=p.y,prevDoor=S.level===1&&S.secretDoor?{x:S.secretDoor.x,y:S.secretDoor.y}:null;if(!S.tutorialMode&&S.level===1&&S.secretDoor){const sun=S.bodies.find(b=>b.type==='star'),d=S.secretDoor;d.angle=(d.angle+dt*.42)%(Math.PI*2);if(sun){d.x=sun.x+Math.cos(d.angle)*d.orbit;d.y=sun.y+Math.sin(d.angle)*d.orbit;}}let a=accel(p.x,p.y,S.bodies),repel=S.level===1?antiGravityAt(p.x,p.y,S.secretDoor):{x:0,y:0};p.vx+=(a.x+repel.x)*dt;p.vy+=(a.y+repel.y)*dt;const localSpeedFactor=blackHoleSpeedFactor(p.x,p.y,S.bodies);p.x+=p.vx*dt*localSpeedFactor;p.y+=p.vy*dt*localSpeedFactor;S.traceClock+=dt;if(S.traceClock>=.1){S.traceClock=0;if(S.flightTrace.length<1800)S.flightTrace.push(captureTracePoint(p.x,p.y,S.elapsed));}if(Math.hypot(p.vx,p.vy)>2)p.angle=Math.atan2(p.vy,p.vx);
  if(S.level<=10&&p.launched&&S.aliens.length){
   const heading=Math.atan2(p.vy,p.vx),sideAngle=heading+Math.PI/2;
   for(let i=0;i<S.aliens.length;i++){
@@ -356,7 +363,7 @@ function updateKeyboardFlightControls(dt,p){
  }
 }
 document.addEventListener('keydown',e=>{
- if(!flightKeys.has(e.key)||!S.running||S.paused||!S.ship?.launched||S.level===11)return;
+ if(!flightKeys.has(e.key)||!S.running||S.paused||!S.ship||S.level===11)return;
  const el=document.activeElement;
  if(el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)))return;
  e.preventDefault();heldFlightKeys.add(e.key);
