@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,tutorialMode:false,tutorialStage:1,tutorialFlags:{},tutorialFinished:false,aliensEnabled:(()=>{try{return localStorage.getItem('spaceRescueAliensEnabled')!=='off';}catch(e){return true;}})(),level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[],asteroids:[],oortAsteroids:[],damageCooldown:0};
+const S={running:false,paused:false,tutorialMode:false,tutorialStage:1,tutorialFlags:{},tutorialFinished:false,aliensEnabled:(()=>{try{return localStorage.getItem('spaceRescueAliensEnabled')!=='off';}catch(e){return true;}})(),level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[],asteroids:[],oortAsteroids:[],asteroidBoundary:null,damageCooldown:0};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -20,7 +20,7 @@ const levels=[
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:Math.min(360,Math.floor(W*H/2600))},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,a:Math.random()*.7+.2,p:Math.random()*TAU}));}
 addEventListener('resize',resize);resize();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a),center=()=>({x:W*.45,y:H*.5}),scale=()=>Math.min(W/920,H/650)*1.05;
-function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.portalEffects=[];S.ghostRecord=null;const prior=rankData().find(r=>r.nickname===S.nick&&r.traces&&Array.isArray(r.traces[n])&&r.traces[n].length>1);if(prior)S.ghostRecord={trace:prior.traces[n],time:prior.time};else{const legacy=rankData().find(r=>r.nickname===S.nick&&r.level===n&&Array.isArray(r.trace)&&r.trace.length>1);if(legacy)S.ghostRecord={trace:legacy.trace,time:legacy.time};}S.health=100;S.contactCooldown=0;S.damageCooldown=0;S.asteroids=[];S.oortAsteroids=[];const healthEl=$('shipHealth');if(healthEl)healthEl.textContent='100';camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
+function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.portalEffects=[];S.ghostRecord=null;const prior=rankData().find(r=>r.nickname===S.nick&&r.traces&&Array.isArray(r.traces[n])&&r.traces[n].length>1);if(prior)S.ghostRecord={trace:prior.traces[n],time:prior.time};else{const legacy=rankData().find(r=>r.nickname===S.nick&&r.level===n&&Array.isArray(r.trace)&&r.trace.length>1);if(legacy)S.ghostRecord={trace:legacy.trace,time:legacy.time};}S.health=100;S.contactCooldown=0;S.damageCooldown=0;S.asteroids=[];S.oortAsteroids=[];S.asteroidBoundary=null;const healthEl=$('shipHealth');if(healthEl)healthEl.textContent='100';camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
  S.secretDoor=n===1?{x:0,y:0,r:13,angle:-.85,orbit:0}:null;
  if(n===11){S.secretDoor=null;S.combatAge=0;S.orbitFactor=3.3;$('orbitDistance').value='3.3';$('orbitDistanceValue').textContent='3.3×';S.bodies=[];S.planet={x:W*.57,y:H*.52,r:Math.min(W,H)*.19,mass:90000};S.aliens=Array.from({length:18},(_,i)=>{const a=i*TAU/18+rand(-.12,.12),d=S.planet.r*rand(1.7,2.55);return{x:S.planet.x+Math.cos(a)*d,y:S.planet.y+Math.sin(a)*d,vx:0,vy:0,slotAngle:i*TAU/18,role:i%4,cooldown:rand(.45,2.8),think:rand(0,1.2),r:7+Math.random()*3};});S.orbitAngle=-Math.PI/2;const initialRadius=S.planet.r*S.orbitFactor,initialSpeed=Math.sqrt(G*S.planet.mass/initialRadius)*.96;S.ship={x:S.planet.x+Math.cos(S.orbitAngle)*initialRadius,y:S.planet.y+Math.sin(S.orbitAngle)*initialRadius,vx:-Math.sin(S.orbitAngle)*initialSpeed,vy:Math.cos(S.orbitAngle)*initialSpeed,angle:S.orbitAngle+Math.PI/2,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='01';$('combatScore').textContent='0';$('scoreBar').style.width='0%';$('shipStatus').textContent='ORBITAL COMBAT';$('hullValue').textContent='3';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z*1.07,y=c.y+oy*z*1.07;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
@@ -49,6 +49,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
   const outermost=S.bodies.reduce((m,b)=>Math.max(m,Math.hypot(b.x-oortAnchor.x,b.y-oortAnchor.y)+b.r),0);
   const playerDistance=Math.hypot(S.ship.x-oortAnchor.x,S.ship.y-oortAnchor.y);
   const innerRadius=Math.max(outermost+65*z,playerDistance+85*z),outerRadius=innerRadius+Math.max(145*z,Math.min(W,H)*.24);
+  S.asteroidBoundary={anchor:oortAnchor,radius:outerRadius+Math.max(300*z,Math.min(W,H)*.65)};
   const ringCount=6,total=260,baseCount=Math.floor(total/ringCount),orbitalGravity=G*gravityMass(oortAnchor)*.22;
   for(let ring=0;ring<ringCount;ring++){
    const count=baseCount+(ring<total%ringCount?1:0),radius=innerRadius+(outerRadius-innerRadius)*(ring/(ringCount-1));
@@ -82,7 +83,23 @@ function accel(x,y,bodies){return gravityAt(x,y,bodies);}
 function blackHoleSpeedFactor(x,y,bodies){const holes=bodies.filter(b=>b.type==='blackhole');if(!holes.length)return 1;let nearest=Infinity,radius=1;for(const b of holes){const d=Math.hypot(x-b.x,y-b.y);if(d<nearest){nearest=d;radius=Math.max(1,b.r);}}const t=clamp((nearest/radius-1.15)/6.85,0,1),smooth=t*t*(3-2*t);return .38+.62*smooth;}
 function antiGravityAt(x,y,door){if(!door)return{x:0,y:0};const dx=x-door.x,dy=y-door.y,d2=dx*dx+dy*dy;if(d2>300*300)return{x:0,y:0};const d=Math.sqrt(d2)||1,a=Math.min(520,220000/(d2+300));return{x:dx/d*a,y:dy/d*a};}
 function initializeOrbitalVelocities(){const bodies=S.bodies.filter(b=>b.type!=='ufo');if(!bodies.length)return;const cm=systemBarycenter(bodies),totalMass=cm.mass;for(const b of bodies){const dx=b.x-cm.x,dy=b.y-cm.y,r=Math.hypot(dx,dy);if(r<Math.max(18,b.r*.5)){b.vx=0;b.vy=0;continue;}const speed=Math.sqrt(G*Math.max(1,totalMass-gravityMass(b))/r)*.88*rand(.985,1.015),sign=b.dir||1;b.vx=-dy/r*speed*sign;b.vy=dx/r*speed*sign;}}
-function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}}
+function isFragmentingWorld(b){return b.type==='planet'||b.type==='gas'||b.type==='ring'||b.type==='moon';}
+function fragmentWorldCollision(a,b){
+ const count=4+Math.floor(Math.random()*3),mass=Math.max(1,(a.mass+b.mass)/count),cx=(a.x*a.mass+b.x*b.mass)/(a.mass+b.mass),cy=(a.y*a.mass+b.y*b.mass)/(a.mass+b.mass),vx=(a.vx*a.mass+b.vx*b.mass)/(a.mass+b.mass),vy=(a.vy*a.mass+b.vy*b.mass)/(a.mass+b.mass),radius=Math.max(a.r,b.r)*.34;
+ const fragments=[];
+ for(let i=0;i<count;i++){const ang=TAU*i/count+rand(-.16,.16),kick=rand(24,62),dist=Math.max(a.r,b.r)*.58;fragments.push({name:'WORLD FRAGMENT',type:'asteroid',x:cx+Math.cos(ang)*dist,y:cy+Math.sin(ang)*dist,vx:vx+Math.cos(ang)*kick,vy:vy+Math.sin(ang)*kick,r:radius*rand(.82,1.12),mass,dir:1,tilt:0,rotation:rand(0,TAU)});}
+ return fragments;
+}
+function resolveWorldCollisions(){
+ for(let i=S.bodies.length-1;i>=0;i--){const a=S.bodies[i];if(!isFragmentingWorld(a))continue;
+  for(let j=i-1;j>=0;j--){const b=S.bodies[j];if(!isFragmentingWorld(b))continue;const dx=a.x-b.x,dy=a.y-b.y,rr=a.r+b.r;if(dx*dx+dy*dy>rr*rr)continue;
+   if(S.bodies.length<54){const fragments=fragmentWorldCollision(a,b);S.bodies.splice(i,1);S.bodies.splice(j,1,...fragments);}
+   else{const total=a.mass+b.mass;a.x=(a.x*a.mass+b.x*b.mass)/total;a.y=(a.y*a.mass+b.y*b.mass)/total;a.vx=(a.vx*a.mass+b.vx*b.mass)/total;a.vy=(a.vy*a.mass+b.vy*b.mass)/total;a.mass=total;a.r=Math.sqrt(a.r*a.r+b.r*b.r);S.bodies.splice(j,1);}
+   return;
+  }
+ }
+}
+function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}resolveWorldCollisions();}
 function segmentDistanceSquared(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy;if(!len)return(px-x1)**2+(py-y1)**2;const t=clamp(((px-x1)*dx+(py-y1)*dy)/len,0,1),qx=x1+t*dx,qy=y1+t*dy;return(px-qx)**2+(py-qy)**2;}
 function advanceGravityProjectile(projectile,dt,bodies){
  const ga=gravityAt(projectile.x,projectile.y,bodies);
@@ -144,10 +161,11 @@ function asteroidHitBody(a){
  return null;
 }
 function moveAsteroids(dt){
+ const boundary=S.asteroidBoundary,anchor=boundary?.anchor||{x:W/2,y:H/2};
  for(let i=S.asteroids.length-1;i>=0;i--){
   const a=S.asteroids[i],g=gravityAt(a.x,a.y,S.bodies);a.vx+=g.x*dt*.22;a.vy+=g.y*dt*.22;a.x+=a.vx*dt;a.y+=a.vy*dt;a.angle+=a.spin*dt;
   if(asteroidHitBody(a)){S.asteroids.splice(i,1);fragmentAsteroid(a);continue;}
-  const m=30;if(a.x<-m)a.x=W+m;else if(a.x>W+m)a.x=-m;if(a.y<-m)a.y=H+m;else if(a.y>H+m)a.y=-m;
+  if(boundary&&Math.hypot(a.x-anchor.x,a.y-anchor.y)>boundary.radius)S.asteroids.splice(i,1);
  }
 }
 function moveOortAsteroids(dt){
