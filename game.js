@@ -188,7 +188,12 @@ function renderRefreshCountdown(remaining=180){
  const m=Math.floor(remaining/60),s=remaining%60;
  el.textContent='자동 새로고침까지 '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
-$('manualRefresh').onclick=()=>location.reload();
+function forceRefresh(){
+ const url=new URL(location.href);
+ url.searchParams.set('_force_refresh',String(Date.now()));
+ location.replace(url.toString());
+}
+$('manualRefresh').onclick=forceRefresh;
 function updateStartMenuRefresh(){
  const menuVisible=!$('startScreen').classList.contains('hidden');
  const otherOverlayVisible=['rankScreen','helpScreen','levelClear','gameOver','ending'].some(id=>!$(id).classList.contains('hidden'));
@@ -202,7 +207,7 @@ function updateStartMenuRefresh(){
  if(!startMenuWasActive){startMenuRefreshDeadline=Date.now()+180000;startMenuWasActive=true;}
  const remaining=Math.max(0,Math.ceil((startMenuRefreshDeadline-Date.now())/1000));
  renderRefreshCountdown(remaining);
- if(remaining<=0)location.reload();
+ if(remaining<=0)forceRefresh();
 }
 updateStartMenuRefresh();
 setInterval(updateStartMenuRefresh,250);
