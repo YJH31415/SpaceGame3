@@ -97,7 +97,7 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
   const tx=p.x-Math.cos(heading)*145+Math.cos(sideAngle)*scout.side*42;
   const ty=p.y-Math.sin(heading)*145+Math.sin(sideAngle)*scout.side*42;
   const dx=tx-scout.x,dy=ty-scout.y,d=Math.hypot(dx,dy)||1;
-  let ax=dx/d*105-scout.vx*1.65,ay=dy/d*105-scout.vy*1.65,al=Math.hypot(ax,ay);
+  const ga=gravityAt(scout.x,scout.y,S.bodies);let ax=dx/d*105-scout.vx*1.65+ga.x*.22,ay=dy/d*105-scout.vy*1.65+ga.y*.22,al=Math.hypot(ax,ay);
   if(al>170){ax=ax/al*170;ay=ay/al*170;}
   scout.vx+=ax*dt;scout.vy+=ay*dt;
   const sv=Math.hypot(scout.vx,scout.vy);
