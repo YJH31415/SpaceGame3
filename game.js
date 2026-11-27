@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,runTraces:{}};
+const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[]};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -20,7 +20,7 @@ const levels=[
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:Math.min(360,Math.floor(W*H/2600))},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,a:Math.random()*.7+.2,p:Math.random()*TAU}));}
 addEventListener('resize',resize);resize();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a),center=()=>({x:W*.45,y:H*.5}),scale=()=>Math.min(W/920,H/650)*1.05;
-function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostRecord=null;const prior=rankData().find(r=>r.nickname===S.nick&&r.traces&&Array.isArray(r.traces[n])&&r.traces[n].length>1);if(prior)S.ghostRecord={trace:prior.traces[n],time:prior.time};else{const legacy=rankData().find(r=>r.nickname===S.nick&&r.level===n&&Array.isArray(r.trace)&&r.trace.length>1);if(legacy)S.ghostRecord={trace:legacy.trace,time:legacy.time};}S.health=100;S.contactCooldown=0;const healthEl=$('shipHealth');if(healthEl)healthEl.textContent='100';camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
+function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.portalEffects=[];S.ghostRecord=null;const prior=rankData().find(r=>r.nickname===S.nick&&r.traces&&Array.isArray(r.traces[n])&&r.traces[n].length>1);if(prior)S.ghostRecord={trace:prior.traces[n],time:prior.time};else{const legacy=rankData().find(r=>r.nickname===S.nick&&r.level===n&&Array.isArray(r.trace)&&r.trace.length>1);if(legacy)S.ghostRecord={trace:legacy.trace,time:legacy.time};}S.health=100;S.contactCooldown=0;const healthEl=$('shipHealth');if(healthEl)healthEl.textContent='100';camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
  S.secretDoor=n===1?{x:0,y:0,r:13,angle:-.85,orbit:0}:null;
  if(n===11){S.secretDoor=null;S.combatAge=0;S.orbitFactor=3.3;$('orbitDistance').value='3.3';$('orbitDistanceValue').textContent='3.3×';S.bodies=[];S.planet={x:W*.57,y:H*.52,r:Math.min(W,H)*.19,mass:90000};S.aliens=Array.from({length:18},(_,i)=>{const a=i*TAU/18+rand(-.12,.12),d=S.planet.r*rand(1.7,2.55);return{x:S.planet.x+Math.cos(a)*d,y:S.planet.y+Math.sin(a)*d,vx:0,vy:0,slotAngle:i*TAU/18,role:i%4,cooldown:rand(.45,2.8),think:rand(0,1.2),r:7+Math.random()*3};});S.orbitAngle=-Math.PI/2;const initialRadius=S.planet.r*S.orbitFactor,initialSpeed=Math.sqrt(G*S.planet.mass/initialRadius)*.96;S.ship={x:S.planet.x+Math.cos(S.orbitAngle)*initialRadius,y:S.planet.y+Math.sin(S.orbitAngle)*initialRadius,vx:-Math.sin(S.orbitAngle)*initialSpeed,vy:Math.cos(S.orbitAngle)*initialSpeed,angle:S.orbitAngle+Math.PI/2,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='01';$('combatScore').textContent='0';$('scoreBar').style.width='0%';$('shipStatus').textContent='ORBITAL COMBAT';$('hullValue').textContent='3';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z*1.07,y=c.y+oy*z*1.07;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
@@ -51,7 +51,7 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostRecord=null;const pr
    if(score>scoutScore){scoutScore=score;scout={x:xx,y:yy};}
   }
  }
- S.scoutAttackAge=0;S.scoutCloneAge=0;S.aliens=[{x:scout.x,y:scout.y,vx:0,vy:0,r:9,side:Math.random()<.5?-1:1,cooldown:rand(2.1,3.2)}];
+ S.scoutAttackAge=0;S.scoutCloneAge=0;S.aliens=[{x:scout.x,y:scout.y,vx:0,vy:0,r:9,side:Math.random()<.5?-1:1,cooldown:rand(2.1,3.2),cloned:false}];
  $('objectCount').textContent=String(S.bodies.length).padStart(2,'0');$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';$('statusText').textContent='GRAVITY FIELD STABLE';predict();
 }
 function gravityMass(b){const factor={blackhole:8,star:1.18,gas:2.376,ring:2.376,planet:5.4,moon:3.24,asteroid:2.16,comet:2.16};return b.mass*(factor[b.type]||1);}
@@ -67,13 +67,28 @@ function initializeOrbitalVelocities(){const bodies=S.bodies.filter(b=>b.type!==
 function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}}
 function segmentDistanceSquared(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy;if(!len)return(px-x1)**2+(py-y1)**2;const t=clamp(((px-x1)*dx+(py-y1)*dy)/len,0,1),qx=x1+t*dx,qy=y1+t*dy;return(px-qx)**2+(py-qy)**2;}
 function interceptPoint(shooter,target,speed,targetBodies=S.level===11?[S.planet]:S.bodies){
- const rx=target.x-shooter.x,ry=target.y-shooter.y,vx=target.vx,vy=target.vy,acc=gravityAt(target.x,target.y,targetBodies);
- const A=vx*vx+vy*vy-speed*speed,B=2*(rx*vx+ry*vy),C=rx*rx+ry*ry;
- let t=Math.hypot(rx,ry)/speed;
- if(Math.abs(A)<1e-6){if(Math.abs(B)>1e-6){const root=-C/B;if(root>0)t=root;}}
- else{const disc=B*B-4*A*C;if(disc>=0){const roots=[(-B-Math.sqrt(disc))/(2*A),(-B+Math.sqrt(disc))/(2*A)].filter(v=>v>0&&Number.isFinite(v));if(roots.length)t=Math.min(...roots);}}
- for(let i=0;i<5;i++){const px=target.x+vx*t+.5*acc.x*t*t,py=target.y+vy*t+.5*acc.y*t*t,next=Math.hypot(px-shooter.x,py-shooter.y)/speed;t=t*.35+next*.65;}
- return{x:target.x+vx*t+.5*acc.x*t*t,y:target.y+vy*t+.5*acc.y*t*t,time:t};
+ // Iterative shooting solution: predict the moving target and celestial system, then correct the launch angle for gravity-bent laser flight.
+ let angle=Math.atan2(target.y-shooter.y,target.x-shooter.x),flightTime=Math.min(4.5,Math.hypot(target.x-shooter.x,target.y-shooter.y)/speed),aim={x:target.x,y:target.y};
+ for(let pass=0;pass<4;pass++){
+  const bs=targetBodies.map(b=>({...b}));let tx=target.x,ty=target.y,tvx=target.vx||0,tvy=target.vy||0,lx=shooter.x,ly=shooter.y,lvx=Math.cos(angle)*speed,lvy=Math.sin(angle)*speed,elapsed=0,dt=.04;
+  while(elapsed<4.5){const h=Math.min(dt,4.5-elapsed),ba=bodyAccelerations(bs);for(let i=0;i<bs.length;i++){const b=bs[i];if(b.type==='ufo')continue;b.vx+=ba[i].x*h;b.vy+=ba[i].y*h;b.x+=b.vx*h;b.y+=b.vy*h;}
+   const ta=gravityAt(tx,ty,bs),la=gravityAt(lx,ly,bs);tvx+=ta.x*h;tvy+=ta.y*h;tx+=tvx*h;ty+=tvy*h;lvx+=la.x*h;lvy+=la.y*h;const oldX=lx,oldY=ly;lx+=lvx*h;ly+=lvy*h;elapsed+=h;
+   if(Math.hypot(lx-tx,ly-ty)<Math.max(8,speed*h*.65)){flightTime=elapsed;break;}
+   if(elapsed>=flightTime&&pass>0)break;
+  }
+  aim={x:tx,y:ty};const ex=tx-lx,ey=ty-ly,dist=Math.hypot(ex,ey)||1,dir=Math.atan2(lvy,lvx),correction=Math.atan2(Math.cos(dir)*ey-Math.sin(dir)*ex,Math.max(20,Math.hypot(tx-shooter.x,ty-shooter.y)));
+  angle+=clamp(correction,-.42,.42);flightTime=clamp(Math.hypot(tx-shooter.x,ty-shooter.y)/speed,.08,4.5);
+ }
+ return{x:aim.x,y:aim.y,time:flightTime,angle};
+}
+function updateAlienPortals(dt){
+ const p=S.ship;if(!p||!p.launched)return;S.portalEffects=S.portalEffects||[];
+ for(const a of S.aliens){if(!a.cloned)continue;a.portalCooldown=(a.portalCooldown??rand(7,12))-dt;if(a.portalCooldown>0)continue;a.portalCooldown=rand(9,15);if(Math.random()>.24||S.portalEffects.some(q=>q.alien===a))continue;
+  let dest=null,best=-Infinity;for(let k=0;k<24;k++){const ang=rand(0,TAU),d=rand(175,245),x=p.x+Math.cos(ang)*d,y=p.y+Math.sin(ang)*d;if(x<25||x>W-25||y<55||y>H-25)continue;const shipGap=Math.hypot(x-p.x,y-p.y),bodyGap=S.bodies.reduce((m,b)=>Math.min(m,Math.hypot(x-b.x,y-b.y)-b.r),Infinity);if(shipGap<155||bodyGap<Math.max(55,a.r*5))continue;const score=bodyGap+rand(0,20);if(score>best){best=score;dest={x,y};}}
+  if(dest)S.portalEffects.push({x:a.x,y:a.y,destX:dest.x,destY:dest.y,alien:a,age:0,duration:.72});
+ }
+ for(const q of S.portalEffects){q.age+=dt;if(q.age>=q.duration){const a=q.alien;if(S.aliens.includes(a)){a.x=q.destX;a.y=q.destY;a.vx=(p.x-a.x)*.12;a.vy=(p.y-a.y)*.12;}q.done=true;}}
+ S.portalEffects=S.portalEffects.filter(q=>!q.done);
 }
 function updateAlienAI(dt){const p=S.ship,heading=p.angle,leadX=p.x+Math.cos(heading)*42,leadY=p.y+Math.sin(heading)*42;for(let i=0;i<S.aliens.length;i++){const a=S.aliens[i];a.think-=dt;if(a.think<=0){a.think=rand(1.8,3.2);a.role=(a.role+1+(i%3===0?1:0))%4;}const roleAngle=[Math.PI,Math.PI*.72,-Math.PI*.72,0][a.role],angle=heading+roleAngle+a.slotAngle*.22,radius=125+(i%3)*24,targetX=leadX+Math.cos(angle)*radius,targetY=leadY+Math.sin(angle)*radius;let sx=0,sy=0;for(let j=0;j<S.aliens.length;j++){if(i===j)continue;const b=S.aliens[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2>0&&d2<78*78){const d=Math.sqrt(d2),force=(78-d)/78;sx+=dx/d*force*210;sy+=dy/d*force*210;}}const dx=targetX-a.x,dy=targetY-a.y,d=Math.hypot(dx,dy)||1;let ax=dx/d*190+sx-a.vx*1.7,ay=dy/d*190+sy-a.vy*1.7,acc=Math.hypot(ax,ay);if(acc>260){ax=ax/acc*260;ay=ay/acc*260;}a.vx+=ax*dt;a.vy+=ay*dt;const speed=Math.hypot(a.vx,a.vy);if(speed>165){a.vx=a.vx/speed*165;a.vy=a.vy/speed*165;}a.x+=a.vx*dt;a.y+=a.vy*dt;}}
 function updateKeyboardFlightControls(dt,p){
@@ -113,11 +128,12 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
     // Recalculate each alien's distance at the instant it fires: farther targets get a tighter angular spread.
     const targetDistance=Math.hypot(p.x-scout.x,p.y-scout.y);
     const distanceFactor=clamp(300/Math.max(1,targetDistance),.35,2.2);
-    const spread=baseSpread*distanceFactor,angle=Math.atan2(ly,lx)+(spread?rand(-spread,spread):0);
-    S.enemyShots.push({x:scout.x,y:scout.y,vx:Math.cos(angle)*laserSpeed,vy:Math.sin(angle)*laserSpeed,life:Math.min(5,aim.time+1)});
+    const spread=baseSpread*distanceFactor,angle=aim.angle+(spread?rand(-spread,spread):0);
+    S.enemyShots.push({x:scout.x,y:scout.y,vx:Math.cos(angle)*laserSpeed,vy:Math.sin(angle)*laserSpeed,life:Math.min(5,aim.time+1),gravity:true});
     scout.cooldown=rand(2.2,3.4);
    }
   }
+  updateAlienPortals(dt);
   S.contactCooldown=Math.max(0,(S.contactCooldown||0)-dt);
   if(S.contactCooldown<=0){
    const touching=S.aliens.some(alien=>Math.hypot(p.x-alien.x,p.y-alien.y)<p.r+alien.r+2);
@@ -127,7 +143,7 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
  if(S.level<=10){syncSteering(p.angle*180/Math.PI);}if(!Number.isFinite(p.x+p.y+p.vx+p.vy)){lose();return;}if(S.level===1&&S.secretDoor){const d=S.secretDoor,doorX=(d.x+(prevDoor?.x??d.x))*.5,doorY=(d.y+(prevDoor?.y??d.y))*.5,r=d.r+p.r+5;if(segmentDistanceSquared(doorX,doorY,prevX,prevY,p.x,p.y)<=r*r){S.total+=S.elapsed;S.elapsed=0;S.running=true;S.paused=false;setLevel(11);$('statusText').textContent='SECRET WORMHOLE FOUND';$('shipStatus').textContent='ORBITAL COMBAT';return;}}if(S.level<=10){const wx=(S.worm.x+(prevWorm?.x??S.worm.x))*.5,wy=(S.worm.y+(prevWorm?.y??S.worm.y))*.5;if(segmentDistanceSquared(wx,wy,prevX,prevY,p.x,p.y)<=(S.worm.r+p.r)**2){levelClear();return;}}if(Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}
  if(S.level<=10&&S.enemyShots.length){
   for(const shot of S.enemyShots){
-   const sx=shot.x,sy=shot.y;shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;shot.life-=dt;
+   const sx=shot.x,sy=shot.y;if(shot.gravity){const ga=gravityAt(shot.x,shot.y,S.bodies);shot.vx+=ga.x*dt;shot.vy+=ga.y*dt;}shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;shot.life-=dt;
    const mx=(prevX+p.x)*.5,my=(prevY+p.y)*.5;
    if(segmentDistanceSquared(mx,my,sx,sy,shot.x,shot.y)<=(p.r+4)**2){lose();return;}
   }
@@ -135,7 +151,7 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
  }
 }
 function predict(){let p=S.ship;if(!p||S.level===11){S.path=[];return;}let x=p.x,y=p.y,previewAngle=+$('heading').value*Math.PI/180,previewSpeed=+$('thrust').value,vx=p.launched?p.vx:Math.cos(previewAngle)*previewSpeed,vy=p.launched?p.vy:Math.sin(previewAngle)*previewSpeed;if(!p.launched)p.angle=previewAngle;let bs=S.bodies.map(b=>({...b})),out=[],dt=1/60;for(let i=0;i<600;i++){const ba=bodyAccelerations(bs);for(let j=0;j<bs.length;j++){const b=bs[j];if(b.type==='ufo')continue;b.vx+=ba[j].x*dt;b.vy+=ba[j].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}const ac=accel(x,y,bs),repel=S.level===1?antiGravityAt(x,y,S.secretDoor):{x:0,y:0};vx+=(ac.x+repel.x)*dt;vy+=(ac.y+repel.y)*dt;const localSpeedFactor=blackHoleSpeedFactor(x,y,bs);x+=vx*dt*localSpeedFactor;y+=vy*dt*localSpeedFactor;if(!Number.isFinite(x+y)||Math.hypot(vx,vy)>1400)break;out.push({x,y});if(bs.some(b=>b.type!=='ufo'&&Math.hypot(x-b.x,y-b.y)<b.r+4)||Math.hypot(x-S.worm.x,y-S.worm.y)<S.worm.r)break;}S.path=out;}
-function launch(){if(S.level===11)return;S.flightTrace=[captureTracePoint(S.ship.x,S.ship.y,S.elapsed)];S.traceClock=0;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();}
+function launch(){if(S.level===11||S.ship?.launched)return;S.ghostPlayback=true;S.scoutCloneAge=0;S.scoutAttackAge=0;S.flightTrace=[captureTracePoint(S.ship.x,S.ship.y,S.elapsed)];S.traceClock=0;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();}
 function rankData(){try{let v=JSON.parse(localStorage.getItem('spaceRescueRanks')||'[]');return Array.isArray(v)?v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time)):[];}catch(e){return[];}}
 function compareRecord(a,b){return (+b.level)-(+a.level)||(+a.time)-(+b.time);}
 function bestRecords(rows){const best=new Map();for(const r of rows){const key=r.nickname;const prev=best.get(key);if(!prev||compareRecord(r,prev)<0)best.set(key,r);}return [...best.values()].sort(compareRecord);}
@@ -164,23 +180,23 @@ function ship(p){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle);ctx.shado
 function drawUfoAttack(){if(S.level!==10)return;const u=S.bodies.find(b=>b.type==='ufo');if(!u)return;ctx.save();ctx.strokeStyle='rgba(255,70,105,.35)';ctx.lineWidth=2;ctx.setLineDash([4,8]);ctx.beginPath();ctx.moveTo(u.x,u.y+u.r*.5);ctx.lineTo(S.ship.x,S.ship.y);ctx.stroke();ctx.restore();}
 function captureTracePoint(x,y,time){return[+x.toFixed(1),+y.toFixed(1),+time.toFixed(2),S.bodies.map(b=>[+b.x.toFixed(1),+b.y.toFixed(1),+b.r.toFixed(1),b.type,b.name||''])];}
 function drawGhostBodies(trace,index,f){const a=trace[index],b=trace[Math.min(index+1,trace.length-1)],aa=Array.isArray(a[3])?a[3]:[],bb=Array.isArray(b[3])?b[3]:[];for(let i=0;i<aa.length;i++){const p=aa[i],q=bb[i]||p,x=p[0]+((q[0]??p[0])-p[0])*f,y=p[1]+((q[1]??p[1])-p[1])*f,r=p[2],type=p[3];ctx.save();ctx.globalAlpha=.28;ctx.setLineDash([4,5]);ctx.lineWidth=1.5;let color=type==='blackhole'?'#b58cff':type==='star'?'#ffd27a':type==='ufo'?'#ff8cc8':type==='gas'||type==='ring'?'#80d9ee':type==='moon'?'#c5cbd5':'#8db8ff';ctx.strokeStyle=color;ctx.fillStyle=color;if(type==='blackhole'){ctx.shadowBlur=10;ctx.shadowColor=color;ctx.beginPath();ctx.arc(x,y,r*1.65,0,TAU);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(0,0,0,.8)';ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();}else{ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.beginPath();ctx.arc(x,y,r+3,0,TAU);ctx.stroke();}ctx.setLineDash([]);ctx.font='9px sans-serif';ctx.fillStyle=color;ctx.fillText(p[4]||type.toUpperCase(),x+r+4,y-3);ctx.restore();}}
-function drawGhostPath(){const trace=S.ghostRecord?.trace;if(!trace||trace.length<2)return;ctx.save();ctx.strokeStyle='rgba(255,190,95,.58)';ctx.fillStyle='rgba(255,190,95,.82)';ctx.lineWidth=2.4;ctx.setLineDash([7,6]);ctx.beginPath();ctx.moveTo(trace[0][0],trace[0][1]);for(let i=1;i<trace.length;i++)ctx.lineTo(trace[i][0],trace[i][1]);ctx.stroke();ctx.setLineDash([]);let idx=0;while(idx<trace.length-1&&trace[idx+1][2]<=S.elapsed)idx++;const a=trace[idx],b=trace[Math.min(idx+1,trace.length-1)],span=Math.max(.001,b[2]-a[2]),f=clamp((S.elapsed-a[2])/span,0,1),gx=a[0]+(b[0]-a[0])*f,gy=a[1]+(b[1]-a[1])*f;drawGhostBodies(trace,idx,f);ctx.shadowBlur=12;ctx.shadowColor='#ffc36b';ctx.beginPath();ctx.arc(gx,gy,7,0,TAU);ctx.fill();ctx.shadowBlur=0;ctx.font='bold 10px sans-serif';ctx.fillText('PREVIOUS BEST',gx+10,gy-10);ctx.restore();}
+function drawGhostPath(){if(!S.ghostPlayback)return;const trace=S.ghostRecord?.trace;if(!trace||trace.length<2)return;ctx.save();ctx.strokeStyle='rgba(255,190,95,.58)';ctx.fillStyle='rgba(255,190,95,.82)';ctx.lineWidth=2.4;ctx.setLineDash([7,6]);ctx.beginPath();ctx.moveTo(trace[0][0],trace[0][1]);for(let i=1;i<trace.length;i++)ctx.lineTo(trace[i][0],trace[i][1]);ctx.stroke();ctx.setLineDash([]);let idx=0;while(idx<trace.length-1&&trace[idx+1][2]<=S.elapsed)idx++;const a=trace[idx],b=trace[Math.min(idx+1,trace.length-1)],span=Math.max(.001,b[2]-a[2]),f=clamp((S.elapsed-a[2])/span,0,1),gx=a[0]+(b[0]-a[0])*f,gy=a[1]+(b[1]-a[1])*f;drawGhostBodies(trace,idx,f);ctx.shadowBlur=12;ctx.shadowColor='#ffc36b';ctx.beginPath();ctx.arc(gx,gy,7,0,TAU);ctx.fill();ctx.shadowBlur=0;ctx.font='bold 10px sans-serif';ctx.fillText('PREVIOUS BEST',gx+10,gy-10);ctx.restore();}
 function drawPath(){if(!S.path.length)return;ctx.save();ctx.strokeStyle='rgba(92,226,255,.78)';ctx.lineWidth=1.6;ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(S.ship.x,S.ship.y);for(const p of S.path)ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();}
 function drawScoutAlien(a,t){ctx.save();ctx.translate(a.x,a.y);ctx.rotate(Math.sin(t*.0018)*.12);ctx.shadowBlur=13;ctx.shadowColor='#4dffc2';ctx.fillStyle='#79efb6';ctx.beginPath();ctx.ellipse(0,0,a.r*.72,a.r,0,0,TAU);ctx.fill();ctx.fillStyle='#baffdf';ctx.beginPath();ctx.ellipse(0,-a.r*.38,a.r*.85,a.r*.55,0,0,TAU);ctx.fill();ctx.fillStyle='#102e39';ctx.beginPath();ctx.ellipse(-a.r*.28,-a.r*.4,a.r*.15,a.r*.24,-.2,0,TAU);ctx.ellipse(a.r*.28,-a.r*.4,a.r*.15,a.r*.24,.2,0,TAU);ctx.fill();ctx.strokeStyle='#69ffc6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-a.r*.35,a.r*.65);ctx.lineTo(-a.r*.65,a.r*1.25);ctx.moveTo(a.r*.35,a.r*.65);ctx.lineTo(a.r*.65,a.r*1.25);ctx.stroke();ctx.restore();}
+function drawPortals(t){for(const p of S.portalEffects){const pulse=1+Math.sin(t*.012)*.08;for(const pt of [{x:p.x,y:p.y},{x:p.destX,y:p.destY}]){ctx.save();ctx.translate(pt.x,pt.y);ctx.scale(pulse,1);ctx.strokeStyle='rgba(91,224,255,.9)';ctx.fillStyle='rgba(45,125,255,.13)';ctx.lineWidth=3;ctx.shadowBlur=18;ctx.shadowColor='#42cfff';ctx.beginPath();ctx.ellipse(0,0,17,29,0,0,TAU);ctx.fill();ctx.stroke();ctx.restore();}}}
 function drawScoutShots(){for(const p of S.enemyShots){ctx.save();ctx.strokeStyle='#ff527b';ctx.lineWidth=2.6;ctx.shadowBlur=11;ctx.shadowColor='#ff315e';ctx.beginPath();ctx.moveTo(p.x-p.vx*.025,p.y-p.vy*.025);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();}}
 function drawCombat(t){const q=S.planet;let pg=ctx.createRadialGradient(q.x-q.r*.35,q.y-q.r*.4,2,q.x,q.y,q.r);pg.addColorStop(0,'#c9f5ce');pg.addColorStop(.35,'#4caa83');pg.addColorStop(.75,'#176b69');pg.addColorStop(1,'#061d38');ctx.fillStyle=pg;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,TAU);ctx.fill();ctx.save();ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,TAU);ctx.clip();ctx.fillStyle='rgba(179,220,139,.55)';for(let i=0;i<12;i++){let x=q.x+Math.sin(i*8.7)*q.r*.7,y=q.y+Math.cos(i*4.3)*q.r*.7;ctx.beginPath();ctx.ellipse(x,y,q.r*.13,q.r*.07,i*.6,0,TAU);ctx.fill();}ctx.restore();for(const p of S.enemyShots){ctx.strokeStyle='#ff527b';ctx.lineWidth=3;ctx.shadowBlur=12;ctx.shadowColor='#ff315e';ctx.beginPath();ctx.moveTo(p.x-p.vx*.03,p.y-p.vy*.03);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.shadowBlur=0;}for(const p of S.shots){ctx.fillStyle=p.type==='beam'?'#79ffb8':'#ffb65e';ctx.shadowBlur=14;ctx.shadowColor=ctx.fillStyle;ctx.beginPath();ctx.arc(p.x,p.y,p.type==='beam'?6:5,0,TAU);ctx.fill();ctx.shadowBlur=0;}for(const a of S.aliens){ctx.save();ctx.translate(a.x,a.y);ctx.shadowBlur=14;ctx.shadowColor='#4dffc2';ctx.fillStyle='#79efb6';ctx.beginPath();ctx.ellipse(0,0,a.r*.72,a.r,0,0,TAU);ctx.fill();ctx.fillStyle='#baffdf';ctx.beginPath();ctx.ellipse(0,-a.r*.38,a.r*.85,a.r*.55,0,0,TAU);ctx.fill();ctx.fillStyle='#102e39';ctx.beginPath();ctx.ellipse(-a.r*.28,-a.r*.4,a.r*.15,a.r*.24,-.2,0,TAU);ctx.ellipse(a.r*.28,-a.r*.4,a.r*.15,a.r*.24,.2,0,TAU);ctx.fill();ctx.strokeStyle='#69ffc6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-a.r*.35,a.r*.65);ctx.lineTo(-a.r*.65,a.r*1.25);ctx.moveTo(a.r*.35,a.r*.65);ctx.lineTo(a.r*.65,a.r*1.25);ctx.stroke();ctx.restore();}ctx.fillStyle='#8e704d';ctx.beginPath();ctx.ellipse(W*.73,H*.76,W*.3,H*.07,0,0,TAU);ctx.fill();}
-function draw(t){bg(t);ctx.save();ctx.translate(W/2+camera.x,H/2+camera.y);ctx.scale(camera.zoom,camera.zoom);ctx.translate(-W/2,-H/2);if(S.level===11){drawCombat(t);ship(S.ship);}else{S.bodies.forEach(b=>body(b,t));drawUfoAttack();secretDoor(t);worm(t);drawGhostPath();drawPath();drawScoutShots();S.aliens.forEach(a=>drawScoutAlien(a,t));ship(S.ship);}ctx.restore();}
+function draw(t){bg(t);ctx.save();ctx.translate(W/2+camera.x,H/2+camera.y);ctx.scale(camera.zoom,camera.zoom);ctx.translate(-W/2,-H/2);if(S.level===11){drawCombat(t);ship(S.ship);}else{S.bodies.forEach(b=>body(b,t));drawUfoAttack();secretDoor(t);worm(t);drawGhostPath();drawPortals(t);drawPath();drawScoutShots();S.aliens.forEach(a=>drawScoutAlien(a,t));ship(S.ship);}ctx.restore();}
 function loop(now){requestAnimationFrame(loop);let raw=Math.min(.05,(now-S.last)/1000||0);S.last=now;if(S.running&&!S.paused){S.elapsed+=raw;S.acc+=raw*S.rate;let dt=1/120,steps=0;while(S.acc>=dt&&steps<12){step(dt);S.acc-=dt;steps++;}if(steps===12)S.acc=0;pathClock+=raw;if(pathClock>.2){predict();pathClock=0;}if(S.level<=10){
- S.scoutAttackAge=(S.scoutAttackAge||0)+raw;
- S.scoutCloneAge=(S.scoutCloneAge||0)+raw;
- while(S.scoutCloneAge>=5){
+ if(S.ship?.launched){S.scoutAttackAge=(S.scoutAttackAge||0)+raw;S.scoutCloneAge=(S.scoutCloneAge||0)+raw;}
+ while(S.ship?.launched&&S.scoutCloneAge>=5){
   S.scoutCloneAge-=5;
   const current=S.aliens.length,limit=64,add=Math.min(current,limit-current);
   if(add>0){
    const parents=S.aliens.slice(0,add);
    for(const parent of parents){
     const angle=Math.random()*Math.PI*2,offset=18+Math.random()*20;
-    S.aliens.push({x:parent.x+Math.cos(angle)*offset,y:parent.y+Math.sin(angle)*offset,vx:parent.vx*.7,vy:parent.vy*.7,r:parent.r,side:Math.random()<.5?-1:1,cooldown:rand(2.2,3.4)});
+    S.aliens.push({x:parent.x+Math.cos(angle)*offset,y:parent.y+Math.sin(angle)*offset,vx:parent.vx*.7,vy:parent.vy*.7,r:parent.r,side:Math.random()<.5?-1:1,cooldown:rand(2.2,3.4),cloned:true,portalCooldown:rand(7,12)});
    }
   }
  }
