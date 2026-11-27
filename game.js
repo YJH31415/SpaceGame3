@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false};
+const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -20,7 +20,7 @@ const levels=[
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);stars=Array.from({length:Math.min(360,Math.floor(W*H/2600))},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,a:Math.random()*.7+.2,p:Math.random()*TAU}));}
 addEventListener('resize',resize);resize();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a),center=()=>({x:W*.45,y:H*.5}),scale=()=>Math.min(W/920,H/650)*1.05;
-function setLevel(n){camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
+function setLevel(n){S.health=100;S.contactCooldown=0;const healthEl=$('shipHealth');if(healthEl)healthEl.textContent='100';camera.x=0;camera.y=0;camera.zoom=1;if(typeof zoomLabel!=='undefined')updateZoomLabel();S.aliens=[];S.level=n;S.elapsed=0;S.shots=[];S.enemyShots=[];S.path=[];S.score=0;S.hull=3;S.enemyFire=0;$('levelLabel').textContent='LEVEL '+n+' / 11';$('missionLabel').textContent=names[n-1];$('combatPanel').classList.toggle('hidden',n!==11);$('shipStatus').textContent=n===11?'COMBAT':'STANDBY';
  S.secretDoor=n===1?{x:0,y:0,r:13,angle:-.85,orbit:0}:null;
  if(n===11){S.secretDoor=null;S.combatAge=0;S.orbitFactor=3.3;$('orbitDistance').value='3.3';$('orbitDistanceValue').textContent='3.3×';S.bodies=[];S.planet={x:W*.57,y:H*.52,r:Math.min(W,H)*.19,mass:90000};S.aliens=Array.from({length:18},(_,i)=>{const a=i*TAU/18+rand(-.12,.12),d=S.planet.r*rand(1.7,2.55);return{x:S.planet.x+Math.cos(a)*d,y:S.planet.y+Math.sin(a)*d,vx:0,vy:0,slotAngle:i*TAU/18,role:i%4,cooldown:rand(.45,2.8),think:rand(0,1.2),r:7+Math.random()*3};});S.orbitAngle=-Math.PI/2;const initialRadius=S.planet.r*S.orbitFactor,initialSpeed=Math.sqrt(G*S.planet.mass/initialRadius)*.96;S.ship={x:S.planet.x+Math.cos(S.orbitAngle)*initialRadius,y:S.planet.y+Math.sin(S.orbitAngle)*initialRadius,vx:-Math.sin(S.orbitAngle)*initialSpeed,vy:Math.cos(S.orbitAngle)*initialSpeed,angle:S.orbitAngle+Math.PI/2,r:10,launched:true};S.worm={x:W*.78,y:H*.5,r:50};$('objectCount').textContent='01';$('combatScore').textContent='0';$('scoreBar').style.width='0%';$('shipStatus').textContent='ORBITAL COMBAT';$('hullValue').textContent='3';return;}
  const c=center(),z=scale();S.bodies=levels[n-1].map((a,i)=>{const [name,type,ox,oy,r,mass]=a,x=c.x+ox*z*1.07,y=c.y+oy*z*1.07;return{name,type,x,y,vx:0,vy:0,r:Math.max(4,r*z),mass,bx:x,by:y,orbit:0,dir:Math.random()<.5?-1:1,tilt:rand(-.45,.45)};});
@@ -117,6 +117,11 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
     scout.cooldown=rand(2.2,3.4);
    }
   }
+  S.contactCooldown=Math.max(0,(S.contactCooldown||0)-dt);
+  if(S.contactCooldown<=0){
+   const touching=S.aliens.some(alien=>Math.hypot(p.x-alien.x,p.y-alien.y)<p.r+alien.r+2);
+   if(touching){S.health=Math.max(0,S.health-30);S.contactCooldown=.85;const healthEl=$('shipHealth');if(healthEl)healthEl.textContent=String(S.health);document.body.classList.remove('damage-flash');void document.body.offsetWidth;document.body.classList.add('damage-flash');setTimeout(()=>document.body.classList.remove('damage-flash'),240);if(S.health<=0){lose();return;}}
+  }
  }
  if(S.level<=10){syncSteering(p.angle*180/Math.PI);}if(!Number.isFinite(p.x+p.y+p.vx+p.vy)){lose();return;}if(S.level===1&&S.secretDoor){const d=S.secretDoor,doorX=(d.x+(prevDoor?.x??d.x))*.5,doorY=(d.y+(prevDoor?.y??d.y))*.5,r=d.r+p.r+5;if(segmentDistanceSquared(doorX,doorY,prevX,prevY,p.x,p.y)<=r*r){S.total+=S.elapsed;S.elapsed=0;S.running=true;S.paused=false;setLevel(11);$('statusText').textContent='SECRET WORMHOLE FOUND';$('shipStatus').textContent='ORBITAL COMBAT';return;}}if(S.level<=10){const wx=(S.worm.x+(prevWorm?.x??S.worm.x))*.5,wy=(S.worm.y+(prevWorm?.y??S.worm.y))*.5;if(segmentDistanceSquared(wx,wy,prevX,prevY,p.x,p.y)<=(S.worm.r+p.r)**2){levelClear();return;}}if(Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}
  if(S.level<=10&&S.enemyShots.length){
@@ -206,16 +211,18 @@ renderRefreshCountdown();
 const miniAd=$('miniAd');
 $('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
 if(miniAd){
- let adDrag=null;
+ let adDrag=null,adMotion=null;
  const clampAdPosition=(x,y)=>({x:Math.max(0,Math.min(innerWidth-miniAd.offsetWidth,x)),y:Math.max(0,Math.min(innerHeight-miniAd.offsetHeight,y))});
- const placeAd=(x,y,save=true)=>{const p=clampAdPosition(x,y);miniAd.style.left=p.x+'px';miniAd.style.top=p.y+'px';miniAd.style.right='auto';miniAd.style.bottom='auto';if(save){try{localStorage.setItem('spaceRescueAdPosition',JSON.stringify(p));}catch(e){}}};
+ const placeAd=(x,y,save=true)=>{const p=clampAdPosition(x,y);miniAd.style.left=p.x+'px';miniAd.style.top=p.y+'px';miniAd.style.right='auto';miniAd.style.bottom='auto';if(save){try{localStorage.setItem('spaceRescueAdPosition',JSON.stringify(p));}catch(e){}}return p;};
+ const saveAdPosition=()=>{const r=miniAd.getBoundingClientRect();try{localStorage.setItem('spaceRescueAdPosition',JSON.stringify({x:r.left,y:r.top}));}catch(e){}};
+ const stopAdMotion=()=>{if(adMotion!==null)cancelAnimationFrame(adMotion);adMotion=null;};
  try{const saved=JSON.parse(localStorage.getItem('spaceRescueAdPosition')||'null');if(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)){miniAd.style.left=saved.x+'px';miniAd.style.top=saved.y+'px';miniAd.style.right='auto';miniAd.style.bottom='auto';requestAnimationFrame(()=>placeAd(saved.x,saved.y,false));}}catch(e){}
- miniAd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const r=miniAd.getBoundingClientRect();adDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top};miniAd.setPointerCapture(e.pointerId);miniAd.style.cursor='grabbing';});
- miniAd.addEventListener('pointermove',e=>{if(!adDrag||adDrag.id!==e.pointerId)return;placeAd(e.clientX-adDrag.dx,e.clientY-adDrag.dy);});
- const stopAdDrag=e=>{if(!adDrag||adDrag.id!==e.pointerId)return;adDrag=null;miniAd.style.cursor='grab';};
+ miniAd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;stopAdMotion();const r=miniAd.getBoundingClientRect();adDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top,lastX:e.clientX,lastY:e.clientY,lastT:performance.now(),vx:0,vy:0};miniAd.setPointerCapture(e.pointerId);miniAd.style.cursor='grabbing';});
+ miniAd.addEventListener('pointermove',e=>{if(!adDrag||adDrag.id!==e.pointerId)return;const now=performance.now(),dt=Math.max(.008,(now-adDrag.lastT)/1000);adDrag.vx=(e.clientX-adDrag.lastX)/dt;adDrag.vy=(e.clientY-adDrag.lastY)/dt;const speed=Math.hypot(adDrag.vx,adDrag.vy);if(speed>1800){adDrag.vx*=1800/speed;adDrag.vy*=1800/speed;}adDrag.lastX=e.clientX;adDrag.lastY=e.clientY;adDrag.lastT=now;placeAd(e.clientX-adDrag.dx,e.clientY-adDrag.dy,false);});
+ const stopAdDrag=e=>{if(!adDrag||adDrag.id!==e.pointerId)return;const v={vx:adDrag.vx,vy:adDrag.vy};adDrag=null;miniAd.style.cursor='grab';let last=performance.now();if(Math.hypot(v.vx,v.vy)<35){saveAdPosition();return;}const friction=1.65,bounce=.84;const animate=now=>{const dt=Math.min(.04,(now-last)/1000);last=now;const r=miniAd.getBoundingClientRect();let x=r.left+v.vx*dt,y=r.top+v.vy*dt,maxX=Math.max(0,innerWidth-miniAd.offsetWidth),maxY=Math.max(0,innerHeight-miniAd.offsetHeight);if(x<0){x=0;v.vx=Math.abs(v.vx)*bounce;}else if(x>maxX){x=maxX;v.vx=-Math.abs(v.vx)*bounce;}if(y<0){y=0;v.vy=Math.abs(v.vy)*bounce;}else if(y>maxY){y=maxY;v.vy=-Math.abs(v.vy)*bounce;}placeAd(x,y,false);const decay=Math.exp(-friction*dt);v.vx*=decay;v.vy*=decay;if(Math.hypot(v.vx,v.vy)<14){adMotion=null;saveAdPosition();return;}adMotion=requestAnimationFrame(animate);};adMotion=requestAnimationFrame(animate);};
  miniAd.addEventListener('pointerup',stopAdDrag);miniAd.addEventListener('pointercancel',stopAdDrag);
- miniAd.addEventListener('keydown',e=>{const d={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[e.key];if(!d)return;e.preventDefault();const r=miniAd.getBoundingClientRect();placeAd(r.left+d[0],r.top+d[1]);});
- addEventListener('resize',()=>{const r=miniAd.getBoundingClientRect();placeAd(r.left,r.top,false);});
+ miniAd.addEventListener('keydown',e=>{const d={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[e.key];if(!d)return;e.preventDefault();stopAdMotion();const r=miniAd.getBoundingClientRect();placeAd(r.left+d[0],r.top+d[1]);});
+ addEventListener('resize',()=>{stopAdMotion();const r=miniAd.getBoundingClientRect();placeAd(r.left,r.top);});
 }
 $('startBtn').onclick=start;$('nickname').addEventListener('keydown',e=>{if(e.key==='Enter')start();});$('launchBtn').onclick=launch;
 document.addEventListener('keydown',e=>{
