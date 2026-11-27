@@ -168,26 +168,32 @@ function loop(now){requestAnimationFrame(loop);let raw=Math.min(.05,(now-S.last)
 }if(S.level===11){S.combatAge=(S.combatAge||0)+raw;if(combatKeys.has('2')&&beamKeyDownAt&&now-beamKeyDownAt>=1000){beamRepeatClock-=raw;if(beamRepeatClock<=0){fire('beam');beamRepeatClock=.18;}}if(S.combatAge>=1.5){for(const a of S.aliens){a.cooldown-=raw;if(a.cooldown<=0){const laserSpeed=W*.48,aim=interceptPoint(a,S.ship,laserSpeed),dx=aim.x-a.x,dy=aim.y-a.y,d=Math.hypot(dx,dy)||1;S.enemyShots.push({x:a.x,y:a.y,vx:dx/d*laserSpeed,vy:dy/d*laserSpeed,life:Math.min(5,aim.time+1)});a.cooldown=rand(1.6,3.1);}}}S.shots.forEach(p=>{p.x+=p.vx*raw;p.y+=p.vy*raw;p.life-=raw;if(!p.hit&&Math.hypot(p.x-S.planet.x,p.y-S.planet.y)<S.planet.r){p.hit=true;S.score=Math.min(100,S.score+(p.type==='beam'?15:5));$('combatScore').textContent=S.score;$('scoreBar').style.width=S.score+'%';}});S.shots=S.shots.filter(p=>p.life>0&&!p.hit);S.enemyShots.forEach(p=>{p.x+=p.vx*raw;p.y+=p.vy*raw;p.life-=raw;if(!p.hit&&Math.hypot(p.x-S.ship.x,p.y-S.ship.y)<S.ship.r+5){p.hit=true;lose();}});S.enemyShots=S.enemyShots.filter(p=>p.life>0&&!p.hit);if(S.score>=100)finish();}}$('timer').textContent=fmt(S.total+S.elapsed);$('simRate').textContent=S.rate.toFixed(2)+'×';steeringWheel.classList.toggle('visible',!!(S.running&&!S.paused&&S.ship?.launched&&S.level<=10));if(S.ship&&S.level<=10)$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';draw(now);}
 requestAnimationFrame(loop);
 function fire(type){if(S.level!==11||!S.running)return;const p=S.ship,q=S.planet,dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy)||1,speed=type==='beam'?W*.9:W*.55;S.shots.push({x:p.x+Math.cos(p.angle)*17,y:p.y+Math.sin(p.angle)*17,vx:dx/d*speed,vy:dy/d*speed+(type==='mars'?-35:0),life:2.4,type});}
-// Refresh countdown runs only on the unobstructed start screen.
-let startMenuRefreshRemaining=180;
-function renderRefreshCountdown(){
+// Use a wall-clock deadline so the visible countdown advances reliably.
+let startMenuRefreshDeadline=Date.now()+180000;
+let startMenuWasActive=false;
+function renderRefreshCountdown(remaining=180){
  const el=$('refreshCountdown');if(!el)return;
- const m=Math.floor(startMenuRefreshRemaining/60),s=startMenuRefreshRemaining%60;
+ const m=Math.floor(remaining/60),s=remaining%60;
  el.textContent='자동 새로고침까지 '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
 $('manualRefresh').onclick=()=>location.reload();
-setInterval(()=>{
+function updateStartMenuRefresh(){
  const menuVisible=!$('startScreen').classList.contains('hidden');
  const otherOverlayVisible=['rankScreen','helpScreen','levelClear','gameOver','ending'].some(id=>!$(id).classList.contains('hidden'));
- if(menuVisible&&!otherOverlayVisible&&!S.running){
-  startMenuRefreshRemaining=Math.max(0,startMenuRefreshRemaining-1);
-  renderRefreshCountdown();
-  if(startMenuRefreshRemaining<=0)location.reload();
- }else{
-  startMenuRefreshRemaining=180;
-  renderRefreshCountdown();
+ const active=menuVisible&&!otherOverlayVisible&&!S.running;
+ if(!active){
+  startMenuRefreshDeadline=Date.now()+180000;
+  startMenuWasActive=false;
+  renderRefreshCountdown(180);
+  return;
  }
-},1000);
+ if(!startMenuWasActive){startMenuRefreshDeadline=Date.now()+180000;startMenuWasActive=true;}
+ const remaining=Math.max(0,Math.ceil((startMenuRefreshDeadline-Date.now())/1000));
+ renderRefreshCountdown(remaining);
+ if(remaining<=0)location.reload();
+}
+updateStartMenuRefresh();
+setInterval(updateStartMenuRefresh,250);
 const difficultyButtons=[...document.querySelectorAll('[data-difficulty]')];
 try{const savedDifficulty=localStorage.getItem('spaceRescueDifficulty');if(['easy','normal','hard'].includes(savedDifficulty))S.difficulty=savedDifficulty;}catch(e){}
 function renderDifficulty(){difficultyButtons.forEach(btn=>btn.classList.toggle('selected',btn.dataset.difficulty===S.difficulty));}
