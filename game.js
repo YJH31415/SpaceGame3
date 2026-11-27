@@ -179,7 +179,7 @@ setInterval(()=>{
   startMenuIdleSeconds=0;
  }
 },1000);
-const miniAd=$('miniAd');if(localStorage.getItem('spaceRescueMiniAdDismissed')==='1')miniAd?.remove();$('closeMiniAd')?.addEventListener('click',()=>{miniAd?.remove();try{localStorage.setItem('spaceRescueMiniAdDismissed','1');}catch(e){}});
+const miniAd=$('miniAd');$('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
 $('startBtn').onclick=start;$('nickname').addEventListener('keydown',e=>{if(e.key==='Enter')start();});$('launchBtn').onclick=launch;
 document.addEventListener('keydown',e=>{
  if(e.code!=='Space'||e.repeat||!S.running||S.paused||S.level===11||!S.ship||S.ship.launched)return;
