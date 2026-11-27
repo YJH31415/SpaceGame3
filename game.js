@@ -65,19 +65,43 @@ function antiGravityAt(x,y,door){if(!door)return{x:0,y:0};const dx=x-door.x,dy=y
 function initializeOrbitalVelocities(){const bodies=S.bodies.filter(b=>b.type!=='ufo');if(!bodies.length)return;const cm=systemBarycenter(bodies),totalMass=cm.mass;for(const b of bodies){const dx=b.x-cm.x,dy=b.y-cm.y,r=Math.hypot(dx,dy);if(r<Math.max(18,b.r*.5)){b.vx=0;b.vy=0;continue;}const speed=Math.sqrt(G*Math.max(1,totalMass-gravityMass(b))/r)*.88*rand(.985,1.015),sign=b.dir||1;b.vx=-dy/r*speed*sign;b.vy=dx/r*speed*sign;}}
 function moveBodies(dt){const bodies=S.bodies,acc=bodyAccelerations(bodies);for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo'){const t=performance.now()*.00045;b.x=b.bx+Math.sin(t)*95;b.y=b.by+Math.cos(t*1.3)*32;continue;}b.vx+=acc[i].x*dt;b.vy+=acc[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}}
 function segmentDistanceSquared(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy;if(!len)return(px-x1)**2+(py-y1)**2;const t=clamp(((px-x1)*dx+(py-y1)*dy)/len,0,1),qx=x1+t*dx,qy=y1+t*dy;return(px-qx)**2+(py-qy)**2;}
+function advanceGravityProjectile(projectile,dt,bodies){
+ const ga=gravityAt(projectile.x,projectile.y,bodies);
+ projectile.vx+=ga.x*dt;projectile.vy+=ga.y*dt;
+ projectile.x+=projectile.vx*dt;projectile.y+=projectile.vy*dt;
+}
+function advancePredictedBodies(bodies,dt){
+ const ba=bodyAccelerations(bodies);
+ for(let i=0;i<bodies.length;i++){const b=bodies[i];if(b.type==='ufo')continue;b.vx+=ba[i].x*dt;b.vy+=ba[i].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}
+}
 function interceptPoint(shooter,target,speed,targetBodies=S.level===11?[S.planet]:S.bodies){
- // Iterative shooting solution: predict the moving target and celestial system, then correct the launch angle for gravity-bent laser flight.
- let angle=Math.atan2(target.y-shooter.y,target.x-shooter.x),flightTime=Math.min(4.5,Math.hypot(target.x-shooter.x,target.y-shooter.y)/speed),aim={x:target.x,y:target.y};
- for(let pass=0;pass<4;pass++){
-  const bs=targetBodies.map(b=>({...b}));let tx=target.x,ty=target.y,tvx=target.vx||0,tvy=target.vy||0,lx=shooter.x,ly=shooter.y,lvx=Math.cos(angle)*speed,lvy=Math.sin(angle)*speed,elapsed=0,dt=.04;
-  while(elapsed<flightTime){const h=Math.min(dt,flightTime-elapsed),ba=bodyAccelerations(bs);for(let i=0;i<bs.length;i++){const b=bs[i];if(b.type==='ufo')continue;b.vx+=ba[i].x*h;b.vy+=ba[i].y*h;b.x+=b.vx*h;b.y+=b.vy*h;}
-   const ta=gravityAt(tx,ty,bs),la=gravityAt(lx,ly,bs);tvx+=ta.x*h;tvy+=ta.y*h;tx+=tvx*h;ty+=tvy*h;lvx+=la.x*h;lvy+=la.y*h;const oldX=lx,oldY=ly;lx+=lvx*h;ly+=lvy*h;elapsed+=h;
-
+ // Shoot-to-intercept solver. Every trial uses the same semi-implicit gravity step as the live projectile.
+ const step=.025,maxTime=6,initialDistance=Math.hypot(target.x-shooter.x,target.y-shooter.y);
+ let angle=Math.atan2(target.y-shooter.y,target.x-shooter.x),flightTime=clamp(initialDistance/Math.max(1,speed),.08,maxTime),best={miss:Infinity,angle,x:target.x,y:target.y,time:flightTime};
+ for(let pass=0;pass<9;pass++){
+  const bs=targetBodies.map(b=>({...b}));
+  const ship={x:target.x,y:target.y,vx:target.vx||0,vy:target.vy||0};
+  const laser={x:shooter.x,y:shooter.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed};
+  let elapsed=0,closest={miss:Infinity,x:ship.x,y:ship.y,time:0};
+  while(elapsed<maxTime){
+   const h=Math.min(step,maxTime-elapsed);
+   advancePredictedBodies(bs,h);
+   advanceGravityProjectile(ship,h,bs);
+   advanceGravityProjectile(laser,h,bs);
+   elapsed+=h;
+   const miss=Math.hypot(ship.x-laser.x,ship.y-laser.y);
+   if(miss<closest.miss)closest={miss,x:ship.x,y:ship.y,time:elapsed};
+   if(elapsed>=flightTime&&miss>closest.miss+speed*h*.8)break;
   }
-  aim={x:tx,y:ty};const ex=tx-lx,ey=ty-ly,dist=Math.hypot(ex,ey)||1,dir=Math.atan2(lvy,lvx),correction=Math.atan2(Math.cos(dir)*ey-Math.sin(dir)*ex,Math.max(20,Math.hypot(tx-shooter.x,ty-shooter.y)));
-  angle+=clamp(correction,-.42,.42);flightTime=clamp(Math.hypot(tx-shooter.x,ty-shooter.y)/speed,.08,4.5);
+  if(closest.miss<best.miss)best={...closest,angle};
+  if(closest.miss<Math.max(7,target.r*.7))break;
+  const dx=closest.x-laser.x,dy=closest.y-laser.y,range=Math.max(20,Math.hypot(closest.x-shooter.x,closest.y-shooter.y));
+  const correction=Math.atan2(Math.cos(angle)*dy-Math.sin(angle)*dx,range);
+  if(!Number.isFinite(correction))break;
+  angle+=clamp(correction,-.32,.32);
+  flightTime=clamp(closest.time,.08,maxTime);
  }
- return{x:aim.x,y:aim.y,time:flightTime,angle};
+ return{x:best.x,y:best.y,time:best.time,angle:best.angle};
 }
 function updateAlienPortals(dt){
  const p=S.ship;if(!p||!p.launched)return;S.portalEffects=S.portalEffects||[];
@@ -141,7 +165,7 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
  if(S.level<=10){syncSteering(p.angle*180/Math.PI);}if(!Number.isFinite(p.x+p.y+p.vx+p.vy)){lose();return;}if(S.level===1&&S.secretDoor){const d=S.secretDoor,doorX=(d.x+(prevDoor?.x??d.x))*.5,doorY=(d.y+(prevDoor?.y??d.y))*.5,r=d.r+p.r+5;if(segmentDistanceSquared(doorX,doorY,prevX,prevY,p.x,p.y)<=r*r){S.total+=S.elapsed;S.elapsed=0;S.running=true;S.paused=false;setLevel(11);$('statusText').textContent='SECRET WORMHOLE FOUND';$('shipStatus').textContent='ORBITAL COMBAT';return;}}if(S.level<=10){const wx=(S.worm.x+(prevWorm?.x??S.worm.x))*.5,wy=(S.worm.y+(prevWorm?.y??S.worm.y))*.5;if(segmentDistanceSquared(wx,wy,prevX,prevY,p.x,p.y)<=(S.worm.r+p.r)**2){levelClear();return;}}if(Math.hypot(p.vx,p.vy)>1400){lose();return;}p.safe=Math.max(0,(p.safe||0)-dt);if(p.safe<=0){for(const b of S.bodies)if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+p.r){lose();return;}}
  if(S.level<=10&&S.enemyShots.length){
   for(const shot of S.enemyShots){
-   const sx=shot.x,sy=shot.y;if(shot.gravity){const ga=gravityAt(shot.x,shot.y,S.bodies);shot.vx+=ga.x*dt;shot.vy+=ga.y*dt;}shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;shot.life-=dt;
+   const sx=shot.x,sy=shot.y;if(shot.gravity)advanceGravityProjectile(shot,dt,S.bodies);else{shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;}shot.life-=dt;
    const mx=(prevX+p.x)*.5,my=(prevY+p.y)*.5;
    if(segmentDistanceSquared(mx,my,sx,sy,shot.x,shot.y)<=(p.r+4)**2){lose();return;}
   }
