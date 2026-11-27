@@ -234,7 +234,7 @@ document.addEventListener('keydown',e=>{
  if(el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)))return;
  e.preventDefault();launch();
 });$('pauseBtn').onclick=()=>{S.paused=!S.paused;$('pauseBtn').textContent=S.paused?'재개':'일시정지';};$('quitBtn').onclick=()=>{if(S.running)saveRecord(S.level);home();};$('nextLevel').onclick=next;$('finishGame').onclick=()=>{saveRecord(S.level);home();};$('retryHome').onclick=home;$('endingHome').onclick=home;
-$('showRanks').onclick=()=>{showRanks();$('rankScreen').classList.remove('hidden');};
+$('showRanks').onclick=()=>{showRanks();$('rankScreen').classList.remove('hidden');};$('cleanupRanks').onclick=cleanupRankDuplicates;
 const manualTitles=['01 · 미션 개요','02 · 조작법','03 · 비행과 중력','04 · 천체와 웜홀','05 · 라운드 구성','06 · 최종 전투','07 · 성공과 실패','08 · 랭킹과 기록'];let manualPage=1;
 function showManualPage(n){const pages=[...document.querySelectorAll('[data-manual-page]')];manualPage=Math.max(1,Math.min(pages.length,n));pages.forEach((p,i)=>p.classList.toggle('active',i===manualPage-1));$('manualPageTitle').textContent=manualTitles[manualPage-1];$('manualPageCount').textContent=manualPage+' / '+pages.length;$('manualPrev').disabled=manualPage===1;$('manualNext').textContent=manualPage===pages.length?'처음 페이지로 ↺':'다음 페이지 →';$('manualContent')?.scrollTo(0,0);document.querySelector('.manual-content').scrollTop=0;}
 function closeManual(){$('helpScreen').classList.add('hidden');}
