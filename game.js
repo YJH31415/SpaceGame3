@@ -40,17 +40,16 @@ function setLevel(n){S.flightTrace=[];S.traceClock=0;S.ghostPlayback=false;S.por
   }
  }
  S.ship={x:spawn.x,y:spawn.y,vx:0,vy:0,angle:0,r:shipRadius,launched:false,safe:1.5};
- // 1~10라운드 정찰 외계인은 우주선에서 떨어진 빈 공간에 한 마리 배치한다.
- let scout={x:W*.82,y:H*.2},scoutScore=-Infinity;
- for(let yy=55;yy<=H-55;yy+=Math.max(24,Math.min(42,H/14))){
-  for(let xx=35;xx<=W-35;xx+=Math.max(24,Math.min(42,W/20))){
-   const fromShip=Math.hypot(xx-S.ship.x,yy-S.ship.y);
-   if(fromShip<210)continue;
-   const bodyGap=S.bodies.reduce((m,b)=>Math.min(m,Math.hypot(xx-b.x,yy-b.y)-b.r-16),Infinity);
-   const score=Math.min(bodyGap,100)-Math.abs(fromShip-290)*.12;
-   if(score>scoutScore){scoutScore=score;scout={x:xx,y:yy};}
-  }
+ // 1~10라운드 정찰 외계인은 플레이어와의 거리를 기준으로 하지 않고, 현재 화면 안의 유효한 위치 중 무작위로 스폰한다.
+ let scout={x:rand(35,Math.max(36,W-35)),y:rand(65,Math.max(66,H-65))};
+ const validScoutSpots=[];
+ for(let attempt=0;attempt<180;attempt++){
+  const xx=rand(35,Math.max(36,W-35)),yy=rand(65,Math.max(66,H-65));
+  const bodyGap=S.bodies.reduce((m,b)=>Math.min(m,Math.hypot(xx-b.x,yy-b.y)-b.r),Infinity);
+  const wormGap=Math.hypot(xx-S.worm.x,yy-S.worm.y)-S.worm.r;
+  if(bodyGap>28&&wormGap>28)validScoutSpots.push({x:xx,y:yy});
  }
+ if(validScoutSpots.length)scout=validScoutSpots[Math.floor(Math.random()*validScoutSpots.length)];
  S.scoutAttackAge=0;S.scoutCloneAge=0;S.aliens=[{x:scout.x,y:scout.y,vx:0,vy:0,r:9,side:Math.random()<.5?-1:1,cooldown:rand(2.1,3.2),cloned:false}];
  $('objectCount').textContent=String(S.bodies.length).padStart(2,'0');$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';$('statusText').textContent='GRAVITY FIELD STABLE';predict();
 }
