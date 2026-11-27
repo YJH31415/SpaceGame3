@@ -36,3 +36,14 @@
 
 /* Compact dismissible mission reward card */
 .mini-ad{position:fixed;right:18px;bottom:86px;z-index:40;width:208px;padding:11px 30px 10px 13px;border:1px solid #e9c66a99;border-radius:9px;background:linear-gradient(135deg,#1c2340f2,#302447f2);box-shadow:0 5px 20px #0008,0 0 13px #e8bd4933;backdrop-filter:blur(8px);color:#fff;pointer-events:auto}.mini-ad-tag{display:block;margin-bottom:5px;font:700 8px Orbitron,sans-serif;letter-spacing:1.2px;color:#f4d77e}.mini-ad p{margin:0;font-size:11px;line-height:1.55;color:#e8e6f2}.mini-ad p strong{font-size:13px;color:#ffe28b}.mini-ad p small{font-size:9px;color:#c9bfdc}.mini-ad-close{position:absolute;right:7px;top:6px;width:20px;height:20px;padding:0;border:1px solid #ffffff44;border-radius:50%;background:#ffffff14;color:#fff;font-size:15px;line-height:17px;cursor:pointer}.mini-ad-close:hover{background:#ffffff30}@media(max-width:760px){.mini-ad{right:10px;bottom:82px;width:184px;padding:9px 27px 8px 10px}.mini-ad p{font-size:10px}.mini-ad p strong{font-size:12px}}
+
+
+/* Start menu difficulty and refresh controls */
+.difficulty-picker{display:flex;align-items:center;justify-content:center;gap:8px;margin:4px 0 14px}
+.difficulty-picker>span{font-size:10px;color:var(--muted);margin-right:3px}
+.difficulty-picker button{padding:7px 14px;border-radius:7px;font-size:11px;color:#b9cce0;background:#0a1730}
+.difficulty-picker button.selected{border-color:var(--cyan);color:#fff;background:#075477;box-shadow:0 0 12px #20dfff55}
+.refresh-tools{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}
+.refresh-tools button{padding:7px 12px;border:1px solid #7bd9ff88;border-radius:7px;color:#dff8ff;font-size:10px;background:#102a48}
+.refresh-tools span{font-size:9px;color:#9db5ca;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.difficulty-picker{margin:2px 0 10px}.refresh-tools{margin-top:10px}}
