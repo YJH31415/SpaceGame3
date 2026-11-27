@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[]};
+const S={running:false,paused:false,tutorialMode:false,tutorialStage:1,tutorialFlags:{},tutorialFinished:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false,contactCooldown:0,health:100,flightTrace:[],traceClock:0,ghostRecord:null,ghostPlayback:false,runTraces:{},portalEffects:[]};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -173,17 +173,17 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
  }
 }
 function predict(){let p=S.ship;if(!p||S.level===11){S.path=[];return;}let x=p.x,y=p.y,previewAngle=+$('heading').value*Math.PI/180,previewSpeed=+$('thrust').value,vx=p.launched?p.vx:Math.cos(previewAngle)*previewSpeed,vy=p.launched?p.vy:Math.sin(previewAngle)*previewSpeed;if(!p.launched)p.angle=previewAngle;let bs=S.bodies.map(b=>({...b})),out=[],dt=1/60;for(let i=0;i<600;i++){const ba=bodyAccelerations(bs);for(let j=0;j<bs.length;j++){const b=bs[j];if(b.type==='ufo')continue;b.vx+=ba[j].x*dt;b.vy+=ba[j].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}const ac=accel(x,y,bs),repel=S.level===1?antiGravityAt(x,y,S.secretDoor):{x:0,y:0};vx+=(ac.x+repel.x)*dt;vy+=(ac.y+repel.y)*dt;const localSpeedFactor=blackHoleSpeedFactor(x,y,bs);x+=vx*dt*localSpeedFactor;y+=vy*dt*localSpeedFactor;if(!Number.isFinite(x+y)||Math.hypot(vx,vy)>1400)break;out.push({x,y});if(bs.some(b=>b.type!=='ufo'&&Math.hypot(x-b.x,y-b.y)<b.r+4)||Math.hypot(x-S.worm.x,y-S.worm.y)<S.worm.r)break;}S.path=out;}
-function launch(){if(S.level===11||S.ship?.launched)return;S.ghostPlayback=true;S.scoutCloneAge=0;S.scoutAttackAge=0;S.flightTrace=[captureTracePoint(S.ship.x,S.ship.y,S.elapsed)];S.traceClock=0;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();}
+function launch(){if(S.level===11||S.ship?.launched)return;S.ghostPlayback=true;S.scoutCloneAge=0;S.scoutAttackAge=0;S.flightTrace=[captureTracePoint(S.ship.x,S.ship.y,S.elapsed)];S.traceClock=0;let speed=+$('thrust').value,ang=+$('heading').value*Math.PI/180;S.ship.vx=Math.cos(ang)*speed;S.ship.vy=Math.sin(ang)*speed;S.ship.angle=ang;S.ship.launched=true;S.paused=false;$('pauseBtn').textContent='일시정지';$('shipStatus').textContent='IN FLIGHT';$('statusText').textContent='FLIGHT PATH ACTIVE';predict();if(S.tutorialMode)updateTutorialPanel();}
 function rankData(){try{let v=JSON.parse(localStorage.getItem('spaceRescueRanks')||'[]');return Array.isArray(v)?v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time)):[];}catch(e){return[];}}
 function compareRecord(a,b){return (+b.level)-(+a.level)||(+a.time)-(+b.time);}
 function bestRecords(rows){const best=new Map();for(const r of rows){const key=r.nickname;const prev=best.get(key);if(!prev||compareRecord(r,prev)<0)best.set(key,r);}return [...best.values()].sort(compareRecord);}
-function saveRecord(level){if(S.recorded)return;S.recorded=true;if(S.nick==='관리자')return;const rows=rankData(),traces={...(S.runTraces||{}),[level]:S.flightTrace.slice()},candidate={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),nickname:S.nick,level,time:Math.round((S.total+S.elapsed)*10)/10,date:new Date().toISOString(),result:level===11?'CLEARED':'INCOMPLETE',traces};const previous=rows.filter(r=>r.nickname===candidate.nickname).sort(compareRecord)[0];if(previous&&compareRecord(candidate,previous)>=0)return;const kept=rows.filter(r=>r.nickname!==candidate.nickname);kept.push(candidate);kept.sort(compareRecord);try{localStorage.setItem('spaceRescueRanks',JSON.stringify(kept.slice(0,500)));}catch(e){alert('저장 공간이 부족합니다. 랭킹 JSON 백업을 진행하세요.');}}
+function saveRecord(level){if(S.tutorialMode||S.recorded)return;S.recorded=true;if(S.nick==='관리자')return;const rows=rankData(),traces={...(S.runTraces||{}),[level]:S.flightTrace.slice()},candidate={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),nickname:S.nick,level,time:Math.round((S.total+S.elapsed)*10)/10,date:new Date().toISOString(),result:level===11?'CLEARED':'INCOMPLETE',traces};const previous=rows.filter(r=>r.nickname===candidate.nickname).sort(compareRecord)[0];if(previous&&compareRecord(candidate,previous)>=0)return;const kept=rows.filter(r=>r.nickname!==candidate.nickname);kept.push(candidate);kept.sort(compareRecord);try{localStorage.setItem('spaceRescueRanks',JSON.stringify(kept.slice(0,500)));}catch(e){alert('저장 공간이 부족합니다. 랭킹 JSON 백업을 진행하세요.');}}
 function cleanupRankDuplicates(){const rows=rankData(),clean=bestRecords(rows),removed=rows.length-clean.length;if(!removed){alert('삭제할 중복 기록이 없습니다.');return;}if(!confirm('닉네임별 최고 기록만 남기고 '+removed+'개의 기록을 삭제할까요?'))return;try{localStorage.setItem('spaceRescueRanks',JSON.stringify(clean));showRanks();alert(removed+'개의 중복 기록을 삭제했습니다.');}catch(e){alert('기록 정리에 실패했습니다. 저장 공간을 확인하세요.');}}
 function fmt(t){t=Math.floor(Math.max(0,t));return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');}
 function levelClear(){if(!S.running||S.level>10)return;S.runTraces=S.runTraces||{};S.runTraces[S.level]=S.flightTrace.slice();S.running=false;S.paused=true;S.total+=S.elapsed;S.elapsed=0;$('clearTitle').textContent='LEVEL '+S.level+' CLEAR';$('clearText').textContent=S.level===10?'외계행성에 도착했습니다. 마지막 전투에서 백데렐라를 구출하세요.':'다음 항성계로 이동할까요?';$('levelClear').classList.remove('hidden');$('shipStatus').textContent='WORMHOLE TRANSIT';}
-function lose(){if(!S.running)return;S.running=false;S.paused=true;saveRecord(S.level);$('gameOver').classList.remove('hidden');$('shipStatus').textContent='DESTROYED';}
-function home(){S.running=false;S.paused=false;S.recorded=false;S.level=1;['levelClear','gameOver','ending','combatPanel','rankScreen','helpScreen','infoCard'].forEach(id=>$(id).classList.add('hidden'));$('startScreen').classList.remove('hidden');$('statusText').textContent='SYSTEM READY';}
-function start(){if(!S.difficulty){$('difficultyWarning').classList.remove('hidden');return;}let n=$('nickname').value.trim().replace(/[<>\u0000-\u001f]/g,'').slice(0,16);if(!n){$('nickname').focus();return;}S.nick=n;savePlayCount(n);S.total=0;S.recorded=false;S.runTraces={};S.running=true;S.paused=false;setLevel(1);$('startScreen').classList.add('hidden');$('statusText').textContent='MISSION ACTIVE';}
+function lose(){if(!S.running)return;if(S.tutorialMode){const trainingLevel=S.level===11?11:1;setLevel(trainingLevel);S.running=true;S.paused=false;$('statusText').textContent='훈련 재배치 완료 · 다시 시도하세요';return;}S.running=false;S.paused=true;saveRecord(S.level);$('gameOver').classList.remove('hidden');$('shipStatus').textContent='DESTROYED';}
+function home(){S.running=false;S.paused=false;S.recorded=false;S.tutorialMode=false;S.tutorialFinished=false;$('tutorialPanel').classList.add('hidden');S.level=1;['levelClear','gameOver','ending','combatPanel','rankScreen','helpScreen','infoCard'].forEach(id=>$(id).classList.add('hidden'));$('startScreen').classList.remove('hidden');$('statusText').textContent='SYSTEM READY';}
+function start(){S.tutorialMode=false;$('tutorialPanel').classList.add('hidden');if(!S.difficulty){$('difficultyWarning').classList.remove('hidden');return;}let n=$('nickname').value.trim().replace(/[<>\u0000-\u001f]/g,'').slice(0,16);if(!n){$('nickname').focus();return;}S.nick=n;savePlayCount(n);S.total=0;S.recorded=false;S.runTraces={};S.running=true;S.paused=false;setLevel(1);$('startScreen').classList.add('hidden');$('statusText').textContent='MISSION ACTIVE';}
 function next(){ $('levelClear').classList.add('hidden');S.recorded=false;S.running=true;S.paused=false;setLevel(Math.min(11,S.level+1));}
 function finish(){S.running=false;S.paused=true;saveRecord(11);$('combatPanel').classList.add('hidden');$('finalStats').textContent=S.nick+' · LEVEL 11 · '+fmt(S.total+S.elapsed);$('ending').classList.remove('hidden');}
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -291,7 +291,7 @@ function showManualPage(n){const pages=[...document.querySelectorAll('[data-manu
 function closeManual(){$('helpScreen').classList.add('hidden');}
 $('howTo').onclick=()=>{$('helpScreen').classList.remove('hidden');showManualPage(1);};$('manualPrev').onclick=()=>showManualPage(manualPage-1);$('manualNext').onclick=()=>showManualPage(manualPage===8?1:manualPage+1);$('manualCloseTop').onclick=closeManual;$('manualCloseBottom').onclick=closeManual;
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add('hidden'));
-document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{S.rate=+b.dataset.speed;document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('selected',x===b));});
+document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{S.rate=+b.dataset.speed;document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('selected',x===b));if(S.tutorialMode){S.tutorialFlags.speed=true;updateTutorialPanel();}});
 function syncSteering(degrees){const v=Math.max(-180,Math.min(180,degrees));$('heading').value=v.toFixed(1);$('headingValue').textContent=v.toFixed(1)+'°';$('steeringWheel').style.setProperty('--wheel-angle',v+'deg');}
 function setSteering(degrees,applyVelocity=true){const v=Math.max(-180,Math.min(180,degrees));syncSteering(v);if(S.ship&&S.level<=10){const a=v*Math.PI/180;if(S.ship.launched&&applyVelocity){const speed=Math.hypot(S.ship.vx,S.ship.vy);S.ship.vx=Math.cos(a)*speed;S.ship.vy=Math.sin(a)*speed;S.ship.angle=a;}else if(!S.ship.launched){S.ship.angle=a;predict();}}}
 [['thrust','speedValue',''],['heading','headingValue','°'],['roll','rollValue','°'],['pitch','pitchValue','°'],['yaw','yawValue','°']].forEach(a=>$(a[0]).addEventListener('input',()=>{$(a[1]).textContent=(+$(a[0]).value).toFixed(1)+a[2];if(a[0]==='heading')setSteering(+$('heading').value);else if(!S.ship?.launched&&S.level<=10)predict();}));
@@ -329,6 +329,46 @@ document.addEventListener('keyup',e=>{
  if(flightKeys.has(e.key)){heldFlightKeys.delete(e.key);if(S.running)e.preventDefault();}
 });
 addEventListener('blur',()=>heldFlightKeys.clear());
+
+const tutorialLessons=[
+ {title:'우주선 조종 준비',text:'오른쪽 FLIGHT COMPUTER에서 발사 속도와 방향을 설정합니다. 예상 궤도 점선이 설정에 따라 바뀌는 것을 확인하세요.',task:'실습: 발사 속도와 방향 슬라이더를 움직여 초기 조건을 바꿔 보세요.'},
+ {title:'우주선 발사',text:'설정이 끝나면 발사 버튼을 누르거나 PC에서 스페이스바를 누릅니다. 발사 후에는 PC 방향키 또는 화면 조종 휠로 방향을 조절할 수 있습니다.',task:'실습: 실제 발사 버튼을 눌러 우주선을 출발시키세요.',requires:'launch'},
+ {title:'중력과 예상 궤도',text:'행성이나 별 가까이에서는 중력이 우주선의 속도와 방향을 바꿉니다. 점선은 현재 천체 위치와 중력을 바탕으로 계산한 예상 경로입니다.',task:'실습: 우주선이 움직이며 중력에 의해 경로가 휘는 모습을 관찰하세요.'},
+ {title:'천체 정보 확인',text:'천체를 선택하면 질량, 반지름, 표면 중력, 속도와 공전 방향을 확인할 수 있습니다.',task:'실습: PC는 천체 위에서 마우스 오른쪽 버튼, 모바일은 천체를 길게 눌러 정보를 여세요.',requires:'inspect'},
+ {title:'시간 배속 조절',text:'시간 배속 버튼으로 시뮬레이션 진행 속도를 바꿉니다. 느린 배속은 궤도를 세밀하게 관찰할 때 유용합니다.',task:'실습: 0.5× 또는 2× 버튼을 눌러 배속을 바꿔 보세요.',requires:'speed'},
+ {title:'웜홀 통과',text:'웜홀은 중심 천체 주위를 천천히 움직입니다. 현재 위치와 예상 궤도를 함께 살피고, 필요하면 속도와 방향을 조절해 진입하세요.',task:'실습: 지도 이동·확대 기능으로 웜홀 위치를 찾아보고 진입 경로를 계획하세요. 튜토리얼에서는 통과 여부와 관계없이 다음 단계로 진행할 수 있습니다.'},
+ {title:'외계인과 생존',text:'발사 후 외계인은 우주선을 추적해 중력의 영향을 받는 레이저를 발사합니다. 외계인과 접촉하면 체력이 감소하며, 시간이 지나면 외계인이 복제되고 일부는 포털로 이동합니다.',task:'실습: 방향키나 조종 휠로 궤도를 바꾸며 외계인과 레이저를 피하는 방법을 익히세요. 훈련 중 파괴되면 자동 재배치됩니다.'},
+ {title:'최종 전투 연습',text:'외계 행성 주변에서는 화성 폭탄과 NVIDIA 빔으로 행성을 공격합니다. 화성 폭탄은 1번 키, NVIDIA 빔은 2번 키를 1초 이상 누르면 연속 발사됩니다. 모바일에서는 전투 버튼을 사용하세요.',task:'실습: 화성 폭탄과 NVIDIA 빔을 각각 발사해 보세요. 행성에 명중하면 점수가 올라갑니다.'}
+];
+function updateTutorialPanel(){
+ const n=S.tutorialStage,lesson=tutorialLessons[n-1];if(!lesson)return;
+ $('tutorialProgress').textContent=String(n).padStart(2,'0')+' / 08';
+ $('tutorialProgressBar').style.width=(n/8*100)+'%';
+ $('tutorialTitle').textContent=S.tutorialFinished?'훈련 완료':lesson.title;
+ $('tutorialText').textContent=S.tutorialFinished?'기본 비행 조작과 최종 전투 훈련을 마쳤습니다. 이제 실제 미션에 도전할 수 있습니다.':lesson.text;
+ $('tutorialTask').textContent=S.tutorialFinished?'튜토리얼을 다시 진행하거나 홈 화면으로 돌아가 실제 게임을 시작하세요.':lesson.task;
+ $('tutorialPrev').disabled=n===1;
+ $('tutorialNext').textContent=S.tutorialFinished?'홈 화면으로':'다음 단계 →';
+ if(!S.tutorialFinished&&n===8)$('tutorialNext').textContent='튜토리얼 완료';
+ const ready=!lesson.requires||!!S.tutorialFlags[lesson.requires];
+ $('tutorialNext').disabled=!S.tutorialFinished&&!ready;
+}
+function enterTutorialStage(n){
+ S.tutorialStage=clamp(n,1,8);S.tutorialFinished=false;
+ if(S.tutorialStage===8&&S.level!==11){setLevel(11);S.running=true;S.paused=false;}
+ else if(S.tutorialStage<8&&S.level===11){setLevel(1);S.running=true;S.paused=false;}
+ $('tutorialPanel').classList.remove('hidden');updateTutorialPanel();
+}
+function startTutorial(){
+ S.tutorialMode=true;S.tutorialFlags={};S.tutorialFinished=false;S.tutorialStage=1;S.nick='훈련생';S.difficulty=S.difficulty||'normal';S.total=0;S.recorded=false;S.runTraces={};S.rate=1;S.running=true;S.paused=false;setLevel(1);
+ $('startScreen').classList.add('hidden');$('rankScreen').classList.add('hidden');$('helpScreen').classList.add('hidden');$('statusText').textContent='FLIGHT TRAINING';$('tutorialPanel').classList.remove('hidden');
+ document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('selected',b.dataset.speed==='1'));updateTutorialPanel();
+}
+$('tutorialStart').onclick=startTutorial;
+$('tutorialPrev').onclick=()=>{if(S.tutorialStage>1)enterTutorialStage(S.tutorialStage-1);};
+$('tutorialNext').onclick=()=>{if(S.tutorialFinished){home();return;}if(S.tutorialStage===8){S.tutorialFinished=true;S.running=false;S.paused=true;localStorage.setItem('spaceRescueTutorialComplete','1');updateTutorialPanel();return;}enterTutorialStage(S.tutorialStage+1);};
+$('tutorialExit').onclick=()=>{if(S.tutorialMode&&confirm('튜토리얼을 종료하고 홈 화면으로 돌아갈까요?'))home();};
+
 document.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>exportRanks(b.dataset.export));$('importRanks').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let v=JSON.parse(await f.text());if(!Array.isArray(v))throw Error();let clean=v.filter(r=>r&&typeof r.nickname==='string'&&Number.isFinite(+r.level)&&Number.isFinite(+r.time));localStorage.setItem('spaceRescueRanks',JSON.stringify([...rankData(),...clean].sort((a,b)=>b.level-a.level||a.time-b.time).slice(0,500)));showRanks();alert('랭킹 백업을 가져왔습니다.');}catch(err){alert('올바른 랭킹 JSON 파일이 아닙니다.');}e.target.value='';};
 $('marsWeapon').onclick=()=>fire('mars');$('beamWeapon').onclick=()=>fire('beam');
 document.addEventListener('keydown',e=>{
@@ -339,7 +379,7 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('keyup',e=>{if(e.key==='2'){combatKeys.delete('2');beamKeyDownAt=0;beamRepeatClock=0;}});
 addEventListener('blur',()=>{combatKeys.clear();beamKeyDownAt=0;beamRepeatClock=0;});$('orbitDistance').addEventListener('input',()=>{const nextFactor=+$('orbitDistance').value;$('orbitDistanceValue').textContent=nextFactor.toFixed(1)+'×';if(S.level===11&&S.planet&&S.ship){const dx=S.ship.x-S.planet.x,dy=S.ship.y-S.planet.y,r=Math.max(S.planet.r+S.ship.r+12,Math.hypot(dx,dy)),tangent=Math.atan2(dy,dx)+Math.PI/2,radial=(S.ship.vx*dx+S.ship.vy*dy)/r,desired=Math.sqrt(G*S.planet.mass/(S.planet.r*nextFactor));S.ship.vx=Math.cos(tangent)*desired+dx/r*radial;S.ship.vy=Math.sin(tangent)*desired+dy/r*radial;S.orbitFactor=nextFactor;}});
-function infoAt(p){let b=S.bodies.find(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r+10);if(!b)return;$('infoName').textContent=b.name;let vals=[['종류',b.type],['질량(게임 단위)',b.mass.toLocaleString()],['반지름',b.r.toFixed(1)],['표면 중력',(G*b.mass/(b.r*b.r+SOFT)).toFixed(2)],['속도',Math.hypot(b.vx,b.vy).toFixed(2)],['공전 방향',b.dir>0?'반시계':'시계']];$('infoDetails').innerHTML=vals.map(v=>'<div class="info-line"><span>'+v[0]+'</span><b>'+safe(v[1])+'</b></div>').join('');$('infoCard').classList.remove('hidden');}
+function infoAt(p){let b=S.bodies.find(o=>Math.hypot(o.x-p.x,o.y-p.y)<o.r+10);if(!b)return;$('infoName').textContent=b.name;let vals=[['종류',b.type],['질량(게임 단위)',b.mass.toLocaleString()],['반지름',b.r.toFixed(1)],['표면 중력',(G*b.mass/(b.r*b.r+SOFT)).toFixed(2)],['속도',Math.hypot(b.vx,b.vy).toFixed(2)],['공전 방향',b.dir>0?'반시계':'시계']];$('infoDetails').innerHTML=vals.map(v=>'<div class="info-line"><span>'+v[0]+'</span><b>'+safe(v[1])+'</b></div>').join('');$('infoCard').classList.remove('hidden');if(S.tutorialMode){S.tutorialFlags.inspect=true;updateTutorialPanel();}}
 function point(e){let r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
 function screenToWorld(p){return{x:(p.x-W/2-camera.x)/camera.zoom+W/2,y:(p.y-H/2-camera.y)/camera.zoom+H/2};}
 function zoomAt(p,factor){let before=screenToWorld(p);camera.zoom=clamp(camera.zoom*factor,.55,2.8);camera.x=p.x-W/2-(before.x-W/2)*camera.zoom;camera.y=p.y-H/2-(before.y-H/2)*camera.zoom;}
