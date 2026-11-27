@@ -203,7 +203,20 @@ function renderDifficulty(){difficultyButtons.forEach(btn=>btn.classList.toggle(
 difficultyButtons.forEach(btn=>btn.addEventListener('click',()=>{S.difficulty=btn.dataset.difficulty;$('difficultyWarning').classList.add('hidden');renderDifficulty();}));
 renderDifficulty();
 renderRefreshCountdown();
-const miniAd=$('miniAd');$('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
+const miniAd=$('miniAd');
+$('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
+if(miniAd){
+ let adDrag=null;
+ const clampAdPosition=(x,y)=>({x:Math.max(0,Math.min(innerWidth-miniAd.offsetWidth,x)),y:Math.max(0,Math.min(innerHeight-miniAd.offsetHeight,y))});
+ const placeAd=(x,y,save=true)=>{const p=clampAdPosition(x,y);miniAd.style.left=p.x+'px';miniAd.style.top=p.y+'px';miniAd.style.right='auto';miniAd.style.bottom='auto';if(save){try{localStorage.setItem('spaceRescueAdPosition',JSON.stringify(p));}catch(e){}}};
+ try{const saved=JSON.parse(localStorage.getItem('spaceRescueAdPosition')||'null');if(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)){miniAd.style.left=saved.x+'px';miniAd.style.top=saved.y+'px';miniAd.style.right='auto';miniAd.style.bottom='auto';requestAnimationFrame(()=>placeAd(saved.x,saved.y,false));}}catch(e){}
+ miniAd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const r=miniAd.getBoundingClientRect();adDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top};miniAd.setPointerCapture(e.pointerId);miniAd.style.cursor='grabbing';});
+ miniAd.addEventListener('pointermove',e=>{if(!adDrag||adDrag.id!==e.pointerId)return;placeAd(e.clientX-adDrag.dx,e.clientY-adDrag.dy);});
+ const stopAdDrag=e=>{if(!adDrag||adDrag.id!==e.pointerId)return;adDrag=null;miniAd.style.cursor='grab';};
+ miniAd.addEventListener('pointerup',stopAdDrag);miniAd.addEventListener('pointercancel',stopAdDrag);
+ miniAd.addEventListener('keydown',e=>{const d={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[e.key];if(!d)return;e.preventDefault();const r=miniAd.getBoundingClientRect();placeAd(r.left+d[0],r.top+d[1]);});
+ addEventListener('resize',()=>{const r=miniAd.getBoundingClientRect();placeAd(r.left,r.top,false);});
+}
 $('startBtn').onclick=start;$('nickname').addEventListener('keydown',e=>{if(e.key==='Enter')start();});$('launchBtn').onclick=launch;
 document.addEventListener('keydown',e=>{
  if(e.code!=='Space'||e.repeat||!S.running||S.paused||S.level===11||!S.ship||S.ship.launched)return;
