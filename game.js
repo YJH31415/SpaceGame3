@@ -115,7 +115,12 @@ document.addEventListener('keydown',e=>{
  if(el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(el.tagName)))return;
  e.preventDefault();launch();
 });$('pauseBtn').onclick=()=>{S.paused=!S.paused;$('pauseBtn').textContent=S.paused?'재개':'일시정지';};$('quitBtn').onclick=()=>{if(S.running)saveRecord(S.level);home();};$('nextLevel').onclick=next;$('finishGame').onclick=()=>{saveRecord(S.level);home();};$('retryHome').onclick=home;$('endingHome').onclick=home;
-$('showRanks').onclick=()=>{showRanks();$('rankScreen').classList.remove('hidden');};$('howTo').onclick=()=>$('helpScreen').classList.remove('hidden');document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$ (b.dataset.close).classList.add('hidden'));
+$('showRanks').onclick=()=>{showRanks();$('rankScreen').classList.remove('hidden');};
+const manualTitles=['01 · 미션 개요','02 · 조작법','03 · 비행과 중력','04 · 천체와 웜홀','05 · 라운드 구성','06 · 최종 전투','07 · 성공과 실패','08 · 랭킹과 기록'];let manualPage=1;
+function showManualPage(n){const pages=[...document.querySelectorAll('[data-manual-page]')];manualPage=Math.max(1,Math.min(pages.length,n));pages.forEach((p,i)=>p.classList.toggle('active',i===manualPage-1));$('manualPageTitle').textContent=manualTitles[manualPage-1];$('manualPageCount').textContent=manualPage+' / '+pages.length;$('manualPrev').disabled=manualPage===1;$('manualNext').textContent=manualPage===pages.length?'처음 페이지로 ↺':'다음 페이지 →';$('manualContent')?.scrollTo(0,0);document.querySelector('.manual-content').scrollTop=0;}
+function closeManual(){$('helpScreen').classList.add('hidden');}
+$('howTo').onclick=()=>{$('helpScreen').classList.remove('hidden');showManualPage(1);};$('manualPrev').onclick=()=>showManualPage(manualPage-1);$('manualNext').onclick=()=>showManualPage(manualPage===8?1:manualPage+1);$('manualCloseTop').onclick=closeManual;$('manualCloseBottom').onclick=closeManual;
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add('hidden'));
 document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{S.rate=+b.dataset.speed;document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('selected',x===b));});
 function syncSteering(degrees){const v=Math.max(-180,Math.min(180,degrees));$('heading').value=v.toFixed(1);$('headingValue').textContent=v.toFixed(1)+'°';$('steeringWheel').style.setProperty('--wheel-angle',v+'deg');}
 function setSteering(degrees,applyVelocity=true){const v=Math.max(-180,Math.min(180,degrees));syncSteering(v);if(S.ship&&S.level<=10){const a=v*Math.PI/180;if(S.ship.launched&&applyVelocity){const speed=Math.hypot(S.ship.vx,S.ship.vy);S.ship.vx=Math.cos(a)*speed;S.ship.vy=Math.sin(a)*speed;S.ship.angle=a;}else if(!S.ship.launched){S.ship.angle=a;predict();}}}
