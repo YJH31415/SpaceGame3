@@ -179,9 +179,9 @@ function step(dt){S.damageCooldown=Math.max(0,(S.damageCooldown||0)-dt);if(S.lev
   for(const shot of S.enemyShots){
    const sx=shot.x,sy=shot.y;if(shot.gravity)advanceGravityProjectile(shot,dt,S.bodies);else{shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;}shot.life-=dt;
    const mx=(prevX+p.x)*.5,my=(prevY+p.y)*.5;
-   if(segmentDistanceSquared(mx,my,sx,sy,shot.x,shot.y)<=(p.r+4)**2){lose();return;}
+   if(!shot.hit&&segmentDistanceSquared(mx,my,sx,sy,shot.x,shot.y)<=(p.r+4)**2){shot.hit=true;applyDamage(30);if(S.health<=0)return;}
   }
-  S.enemyShots=S.enemyShots.filter(shot=>shot.life>0);
+  S.enemyShots=S.enemyShots.filter(shot=>shot.life>0&&!shot.hit);
  }
 }
 function predict(){let p=S.ship;if(!p||S.level===11){S.path=[];return;}let x=p.x,y=p.y,previewAngle=+$('heading').value*Math.PI/180,previewSpeed=+$('thrust').value,vx=p.launched?p.vx:Math.cos(previewAngle)*previewSpeed,vy=p.launched?p.vy:Math.sin(previewAngle)*previewSpeed;if(!p.launched)p.angle=previewAngle;let bs=S.bodies.map(b=>({...b})),out=[],dt=1/60;for(let i=0;i<600;i++){const ba=bodyAccelerations(bs);for(let j=0;j<bs.length;j++){const b=bs[j];if(b.type==='ufo')continue;b.vx+=ba[j].x*dt;b.vy+=ba[j].y*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;}const ac=accel(x,y,bs),repel=S.level===1?antiGravityAt(x,y,S.secretDoor):{x:0,y:0};vx+=(ac.x+repel.x)*dt;vy+=(ac.y+repel.y)*dt;const localSpeedFactor=blackHoleSpeedFactor(x,y,bs);x+=vx*dt*localSpeedFactor;y+=vy*dt*localSpeedFactor;if(!Number.isFinite(x+y)||Math.hypot(vx,vy)>1400)break;out.push({x,y});if(bs.some(b=>b.type!=='ufo'&&Math.hypot(x-b.x,y-b.y)<b.r+4)||Math.hypot(x-S.worm.x,y-S.worm.y)<S.worm.r)break;}S.path=out;}
