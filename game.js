@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,level:1,nick:'',elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false};
+const S={running:false,paused:false,level:1,nick:'',difficulty:'normal',elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -107,8 +107,9 @@ function step(dt){if(S.level===11){const p=S.ship,q=S.planet,a=gravityAt(p.x,p.y
    scout.x+=scout.vx*dt;scout.y+=scout.vy*dt;
    scout.cooldown-=dt;
    if(S.scoutAttackAge>=1.5&&scout.cooldown<=0){
-    const laserSpeed=W*.48,aim=interceptPoint(scout,p,laserSpeed,S.bodies),lx=aim.x-scout.x,ly=aim.y-scout.y,ld=Math.hypot(lx,ly)||1;
-    S.enemyShots.push({x:scout.x,y:scout.y,vx:lx/ld*laserSpeed,vy:ly/ld*laserSpeed,life:Math.min(5,aim.time+1)});
+    const laserSpeed=W*.48,aim=interceptPoint(scout,p,laserSpeed,S.bodies),lx=aim.x-scout.x,ly=aim.y-scout.y;
+    const spread=S.difficulty==='easy'?.09:S.difficulty==='normal'?.035:0,angle=Math.atan2(ly,lx)+(spread?rand(-spread,spread):0);
+    S.enemyShots.push({x:scout.x,y:scout.y,vx:Math.cos(angle)*laserSpeed,vy:Math.sin(angle)*laserSpeed,life:Math.min(5,aim.time+1)});
     scout.cooldown=rand(2.2,3.4);
    }
   }
@@ -167,18 +168,32 @@ function loop(now){requestAnimationFrame(loop);let raw=Math.min(.05,(now-S.last)
 }if(S.level===11){S.combatAge=(S.combatAge||0)+raw;if(combatKeys.has('2')&&beamKeyDownAt&&now-beamKeyDownAt>=1000){beamRepeatClock-=raw;if(beamRepeatClock<=0){fire('beam');beamRepeatClock=.18;}}if(S.combatAge>=1.5){for(const a of S.aliens){a.cooldown-=raw;if(a.cooldown<=0){const laserSpeed=W*.48,aim=interceptPoint(a,S.ship,laserSpeed),dx=aim.x-a.x,dy=aim.y-a.y,d=Math.hypot(dx,dy)||1;S.enemyShots.push({x:a.x,y:a.y,vx:dx/d*laserSpeed,vy:dy/d*laserSpeed,life:Math.min(5,aim.time+1)});a.cooldown=rand(1.6,3.1);}}}S.shots.forEach(p=>{p.x+=p.vx*raw;p.y+=p.vy*raw;p.life-=raw;if(!p.hit&&Math.hypot(p.x-S.planet.x,p.y-S.planet.y)<S.planet.r){p.hit=true;S.score=Math.min(100,S.score+(p.type==='beam'?15:5));$('combatScore').textContent=S.score;$('scoreBar').style.width=S.score+'%';}});S.shots=S.shots.filter(p=>p.life>0&&!p.hit);S.enemyShots.forEach(p=>{p.x+=p.vx*raw;p.y+=p.vy*raw;p.life-=raw;if(!p.hit&&Math.hypot(p.x-S.ship.x,p.y-S.ship.y)<S.ship.r+5){p.hit=true;lose();}});S.enemyShots=S.enemyShots.filter(p=>p.life>0&&!p.hit);if(S.score>=100)finish();}}$('timer').textContent=fmt(S.total+S.elapsed);$('simRate').textContent=S.rate.toFixed(2)+'×';steeringWheel.classList.toggle('visible',!!(S.running&&!S.paused&&S.ship?.launched&&S.level<=10));if(S.ship&&S.level<=10)$('distance').textContent=Math.round(Math.hypot(S.worm.x-S.ship.x,S.worm.y-S.ship.y))+' AU*';draw(now);}
 requestAnimationFrame(loop);
 function fire(type){if(S.level!==11||!S.running)return;const p=S.ship,q=S.planet,dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy)||1,speed=type==='beam'?W*.9:W*.55;S.shots.push({x:p.x+Math.cos(p.angle)*17,y:p.y+Math.sin(p.angle)*17,vx:dx/d*speed,vy:dy/d*speed+(type==='mars'?-35:0),life:2.4,type});}
-// Refresh only while the unobstructed start menu is on screen; never during gameplay.
-let startMenuIdleSeconds=0;
+// Refresh countdown runs only on the unobstructed start screen.
+let startMenuRefreshRemaining=180;
+function renderRefreshCountdown(){
+ const el=$('refreshCountdown');if(!el)return;
+ const m=Math.floor(startMenuRefreshRemaining/60),s=startMenuRefreshRemaining%60;
+ el.textContent='자동 새로고침까지 '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+$('manualRefresh').onclick=()=>location.reload();
 setInterval(()=>{
  const menuVisible=!$('startScreen').classList.contains('hidden');
  const otherOverlayVisible=['rankScreen','helpScreen','levelClear','gameOver','ending'].some(id=>!$(id).classList.contains('hidden'));
  if(menuVisible&&!otherOverlayVisible&&!S.running){
-  startMenuIdleSeconds++;
-  if(startMenuIdleSeconds>=180)location.reload();
+  startMenuRefreshRemaining=Math.max(0,startMenuRefreshRemaining-1);
+  renderRefreshCountdown();
+  if(startMenuRefreshRemaining<=0)location.reload();
  }else{
-  startMenuIdleSeconds=0;
+  startMenuRefreshRemaining=180;
+  renderRefreshCountdown();
  }
 },1000);
+const difficultyButtons=[...document.querySelectorAll('[data-difficulty]')];
+try{const savedDifficulty=localStorage.getItem('spaceRescueDifficulty');if(['easy','normal','hard'].includes(savedDifficulty))S.difficulty=savedDifficulty;}catch(e){}
+function renderDifficulty(){difficultyButtons.forEach(btn=>btn.classList.toggle('selected',btn.dataset.difficulty===S.difficulty));}
+difficultyButtons.forEach(btn=>btn.addEventListener('click',()=>{S.difficulty=btn.dataset.difficulty;try{localStorage.setItem('spaceRescueDifficulty',S.difficulty);}catch(e){}renderDifficulty();}));
+renderDifficulty();
+renderRefreshCountdown();
 const miniAd=$('miniAd');$('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
 $('startBtn').onclick=start;$('nickname').addEventListener('keydown',e=>{if(e.key==='Enter')start();});$('launchBtn').onclick=launch;
 document.addEventListener('keydown',e=>{
