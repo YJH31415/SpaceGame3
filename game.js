@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id),canvas=$('space'),ctx=canvas.getContext('2d'),TAU=Math.PI*2,G=180,SOFT=18,MAX_GRAVITY=420;
 let W=innerWidth,H=innerHeight,dpr=1,stars=[],pathClock=0,beamKeyDownAt=0,beamRepeatClock=0;let combatKeys=new Set();
 const camera={x:0,y:0,zoom:1};const pointers=new Map();let dragState=null,pinchState=null,holdTimer=null;
-const S={running:false,paused:false,level:1,nick:'',difficulty:'normal',elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false};
+const S={running:false,paused:false,level:1,nick:'',difficulty:null,elapsed:0,total:0,last:0,acc:0,rate:1,ship:null,bodies:[],worm:{x:0,y:0,r:35},path:[],score:0,shots:[],enemyShots:[],planet:null,aliens:[],enemyFire:0,hull:3,orbitAngle:0,secretDoor:null,recorded:false};
 const names=['SOL SYSTEM','INNER SOLAR SYSTEM','OUTER SOLAR SYSTEM','GARGANTUA APPROACH','EVENT HORIZON','SINGULARITY','TRIPLE ORBIT','TILTED WORLDS','CHAOTIC SYSTEM','ALIEN FRONTIER','ALIEN HOMEWORLD'];
 const levels=[
 [['SUN','star',-25,0,29,12000],['EARTH','planet',-220,-75,13,90],['MOON','moon',-270,-110,5,5]],
@@ -132,7 +132,7 @@ function fmt(t){t=Math.floor(Math.max(0,t));return String(Math.floor(t/60)).padS
 function levelClear(){if(!S.running||S.level>10)return;S.running=false;S.paused=true;S.total+=S.elapsed;S.elapsed=0;$('clearTitle').textContent='LEVEL '+S.level+' CLEAR';$('clearText').textContent=S.level===10?'외계행성에 도착했습니다. 마지막 전투에서 백데렐라를 구출하세요.':'다음 항성계로 이동할까요?';$('levelClear').classList.remove('hidden');$('shipStatus').textContent='WORMHOLE TRANSIT';}
 function lose(){if(!S.running)return;S.running=false;S.paused=true;saveRecord(S.level);$('gameOver').classList.remove('hidden');$('shipStatus').textContent='DESTROYED';}
 function home(){S.running=false;S.paused=false;S.recorded=false;S.level=1;['levelClear','gameOver','ending','combatPanel','rankScreen','helpScreen','infoCard'].forEach(id=>$(id).classList.add('hidden'));$('startScreen').classList.remove('hidden');$('statusText').textContent='SYSTEM READY';}
-function start(){let n=$('nickname').value.trim().replace(/[<>\u0000-\u001f]/g,'').slice(0,16);if(!n){$('nickname').focus();return;}S.nick=n;S.total=0;S.recorded=false;S.running=true;S.paused=false;setLevel(1);$('startScreen').classList.add('hidden');$('statusText').textContent='MISSION ACTIVE';}
+function start(){if(!S.difficulty){$('difficultyWarning').classList.remove('hidden');return;}let n=$('nickname').value.trim().replace(/[<>\u0000-\u001f]/g,'').slice(0,16);if(!n){$('nickname').focus();return;}S.nick=n;S.total=0;S.recorded=false;S.running=true;S.paused=false;setLevel(1);$('startScreen').classList.add('hidden');$('statusText').textContent='MISSION ACTIVE';}
 function next(){ $('levelClear').classList.add('hidden');S.recorded=false;S.running=true;S.paused=false;setLevel(Math.min(11,S.level+1));}
 function finish(){S.running=false;S.paused=true;saveRecord(11);$('combatPanel').classList.add('hidden');$('finalStats').textContent=S.nick+' · LEVEL 11 · '+fmt(S.total+S.elapsed);$('ending').classList.remove('hidden');}
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -195,9 +195,8 @@ function updateStartMenuRefresh(){
 updateStartMenuRefresh();
 setInterval(updateStartMenuRefresh,250);
 const difficultyButtons=[...document.querySelectorAll('[data-difficulty]')];
-try{const savedDifficulty=localStorage.getItem('spaceRescueDifficulty');if(['easy','normal','hard'].includes(savedDifficulty))S.difficulty=savedDifficulty;}catch(e){}
 function renderDifficulty(){difficultyButtons.forEach(btn=>btn.classList.toggle('selected',btn.dataset.difficulty===S.difficulty));}
-difficultyButtons.forEach(btn=>btn.addEventListener('click',()=>{S.difficulty=btn.dataset.difficulty;try{localStorage.setItem('spaceRescueDifficulty',S.difficulty);}catch(e){}renderDifficulty();}));
+difficultyButtons.forEach(btn=>btn.addEventListener('click',()=>{S.difficulty=btn.dataset.difficulty;$('difficultyWarning').classList.add('hidden');renderDifficulty();}));
 renderDifficulty();
 renderRefreshCountdown();
 const miniAd=$('miniAd');$('closeMiniAd')?.addEventListener('click',()=>miniAd?.remove());
