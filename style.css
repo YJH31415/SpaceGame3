@@ -39,11 +39,11 @@
 
 
 /* Start menu difficulty and refresh controls */
-.difficulty-picker{display:flex;align-items:center;justify-content:center;gap:8px;margin:4px 0 14px}
-.difficulty-picker>span{font-size:10px;color:var(--muted);margin-right:3px}
-.difficulty-picker button{padding:7px 14px;border-radius:7px;font-size:11px;color:#b9cce0;background:#0a1730}
+.difficulty-picker{display:flex;align-items:center;justify-content:center;gap:7px;margin:3px 0 11px}
+.difficulty-picker>span{font-size:9px;color:var(--muted);margin-right:2px}
+.difficulty-picker button{padding:6px 11px;border-radius:11px;font-size:10px;color:#b9cce0;background:#0a1730}
 .difficulty-picker button.selected{border-color:var(--cyan);color:#fff;background:#075477;box-shadow:0 0 12px #20dfff55}
-.refresh-tools{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}
-.refresh-tools button{padding:7px 12px;border:1px solid #7bd9ff88;border-radius:7px;color:#dff8ff;font-size:10px;background:#102a48}
-.refresh-tools span{font-size:9px;color:#9db5ca;font-variant-numeric:tabular-nums}
-@media(max-width:760px){.difficulty-picker{margin:2px 0 10px}.refresh-tools{margin-top:10px}}
+.refresh-tools{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:11px}
+.refresh-tools button{padding:6px 10px;border:1px solid #7bd9ff88;border-radius:10px;color:#dff8ff;font-size:9px;background:#102a48}
+.refresh-tools span{font-size:8px;color:#9db5ca;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.difficulty-picker{margin:2px 0 9px}.refresh-tools{margin-top:9px}}
